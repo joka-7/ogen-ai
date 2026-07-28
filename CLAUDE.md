@@ -3,6 +3,12 @@
 Context for continuing this project in Claude Code. (This file is for working *on*
 `ogen-ai` itself; `ai-sync` never generates it — it only writes into parent projects.)
 
+> **Full context lives in [`docs/DESIGN.md`](docs/DESIGN.md).** This file is the lean
+> summary that loads every session; read `docs/DESIGN.md` for the complete reasoning —
+> the landscape research, every decision and its rationale, the rejected alternatives
+> (including why MCP was not used for rules), and the testing approach. If you feel like
+> you're missing the "why" behind anything below, it's in there.
+
 ## What this repo is
 
 One source of truth for AI coding-assistant config (rules, skills, commands), consumed by
