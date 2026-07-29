@@ -17,7 +17,14 @@ Algorithm overview
    analyzer is a self-contained strategy so new domains can be added
    without touching the others.
 3. ``AuditOrchestrator`` runs every analyzer and folds the results into one
-   ``AuditReport`` (overall score = mean of the six domain scores).
+   ``AuditReport``. The overall score is a weighted mean of the six domain
+   scores, renormalized so it stays 0-100 regardless of the weights used.
+4. If the audited project has its own ``ai-project-config.toml`` (scaffolded
+   by the sibling ``customize_config`` skill), ``ProjectOverrides.load``
+   reads its ``[audit.weights]`` table to bias that mean toward the domains
+   the project cares about most, and passes its ``[rules.custom]``
+   conventions through into the report untouched, for the auditing agent to
+   apply during its own manual review (see this script's own ``SKILL.md``).
 
 This script only produces the *mechanical* half of the audit: countable,
 re-derivable signals (annotation ratios, docstring presence, secret regexes,
@@ -41,6 +48,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -49,6 +57,8 @@ from typing import Any, Literal, Protocol
 
 Severity = Literal["info", "low", "medium", "high"]
 Confidence = Literal["high", "medium", "low"]
+
+PROJECT_CONFIG_FILENAME = "ai-project-config.toml"
 
 EXCLUDED_DIRS: frozenset[str] = frozenset(
     {
@@ -189,10 +199,66 @@ class AuditReport:
     file_count: int
     domains: dict[str, DomainResult]
     overall_score: float
+    domain_weights: dict[str, float] = field(default_factory=dict)
+    custom_rules: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to a plain JSON-safe ``dict`` (dataclasses -> dicts, no ``Path`` objects)."""
         return dataclasses.asdict(self)
+
+
+@dataclass(slots=True)
+class ProjectOverrides:
+    """Project-local overrides loaded from ``ai-project-config.toml``, if present.
+
+    Deliberately self-contained rather than imported from the sibling
+    ``customize_config`` skill's ``init_config.py``: ``ai-sync`` can place
+    ``skills/`` in either symlink or copy mode, and a skill script should
+    never assume where a *different* skill's files end up on disk. The two
+    parsers are intentionally similar, not shared.
+    """
+
+    custom_rules: list[str] = field(default_factory=list)
+    domain_weights: dict[str, float] = field(default_factory=dict)
+
+    @classmethod
+    def load(cls, project_root: Path) -> ProjectOverrides:
+        """Load ``ai-project-config.toml`` from ``project_root``, defaulting to no overrides.
+
+        Algorithm: look for :data:`PROJECT_CONFIG_FILENAME` at the project
+        root; if it's absent or fails to parse as TOML, return an empty
+        :class:`ProjectOverrides` (every domain implicitly stays at weight
+        ``1.0``) rather than raising — a missing or hand-broken override file
+        should degrade to the unweighted default, not crash the whole audit.
+        When present, ``[rules.custom].conventions`` entries are read as-is
+        (blank ones dropped) and ``[audit.weights]`` values are coerced to
+        ``float`` and clamped to ``>= 0.0``; a value that won't parse as a
+        number is skipped rather than defaulted, so a typo doesn't silently
+        turn into "normal priority".
+        """
+        path = project_root / PROJECT_CONFIG_FILENAME
+        if not path.is_file():
+            return cls()
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except tomllib.TOMLDecodeError:
+            return cls()
+
+        rules_table = data.get("rules", {})
+        custom_table = rules_table.get("custom", {}) if isinstance(rules_table, dict) else {}
+        raw_rules = custom_table.get("conventions", []) if isinstance(custom_table, dict) else []
+        custom_rules = [str(rule).strip() for rule in raw_rules if str(rule).strip()]
+
+        audit_table = data.get("audit", {})
+        raw_weights = audit_table.get("weights", {}) if isinstance(audit_table, dict) else {}
+        domain_weights: dict[str, float] = {}
+        for name, raw_value in raw_weights.items():
+            try:
+                domain_weights[name] = max(0.0, float(raw_value))
+            except (TypeError, ValueError):
+                continue
+
+        return cls(custom_rules=custom_rules, domain_weights=domain_weights)
 
 
 # --------------------------------------------------------------------------
@@ -863,10 +929,32 @@ class AuditOrchestrator:
             TestingAnalyzer(),
         ]
 
-    def run(self, scan: ProjectScan) -> AuditReport:
-        """Execute all analyzers and fold their results into one report."""
+    def run(
+        self,
+        scan: ProjectScan,
+        domain_weights: dict[str, float] | None = None,
+        custom_rules: list[str] | None = None,
+    ) -> AuditReport:
+        """Execute all analyzers and fold their results into one weighted report.
+
+        Algorithm: run every analyzer independently (as before), then resolve
+        a weight per domain — ``domain_weights.get(name, 1.0)``, so a project
+        overriding only one domain in ``ai-project-config.toml`` leaves every
+        other domain at normal priority. The overall score is the weighted
+        mean of the six domain scores, renormalized by the sum of weights so
+        it stays on a 0-100 scale no matter how the weights are set; if every
+        weight is ``0`` (every domain excluded), overall falls back to
+        ``0.0`` instead of dividing by zero.
+        """
         domains = {a.domain: a.analyze(scan) for a in self._analyzers}
-        overall = sum(d.score for d in domains.values()) / len(domains) if domains else 0.0
+        overrides = domain_weights or {}
+        resolved_weights = {name: overrides.get(name, 1.0) for name in domains}
+        weight_total = sum(resolved_weights.values())
+        if weight_total > 0:
+            weighted_sum = sum(d.score * resolved_weights[name] for name, d in domains.items())
+            overall = weighted_sum / weight_total
+        else:
+            overall = 0.0
         return AuditReport(
             root=str(scan.root),
             generated_at=datetime.now(timezone.utc).isoformat(),
@@ -874,18 +962,27 @@ class AuditOrchestrator:
             file_count=len(scan.files),
             domains=domains,
             overall_score=round(overall, 1),
+            domain_weights=resolved_weights,
+            custom_rules=list(custom_rules or []),
         )
 
 
 def _print_summary(report: AuditReport) -> None:
-    """Print a short human-readable score table to stdout."""
+    """Print a short human-readable score table to stdout, flagging non-default weights."""
     stack = ", ".join(report.stack) or "(none detected)"
     print(f"Audit: {report.root}")
     print(f"Stack: {stack}  ·  {report.file_count} files scanned")
     print(f"Overall score: {report.overall_score}/100\n")
     for name, result in report.domains.items():
+        weight = report.domain_weights.get(name, 1.0)
+        weight_note = f", weight {weight}" if weight != 1.0 else ""
         print(f"  {name:<24} {result.score:>3}/100  (confidence: {result.confidence}, "
-              f"{len(result.findings)} findings)")
+              f"{len(result.findings)} findings{weight_note})")
+    if report.custom_rules:
+        print(f"\n{len(report.custom_rules)} custom rule(s) from {PROJECT_CONFIG_FILENAME} "
+              "(apply during manual review):")
+        for rule in report.custom_rules:
+            print(f"  - {rule}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -907,6 +1004,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"--project {root} is not a directory")
 
     scan = RepoScanner(max_file_bytes=args.max_file_bytes).scan(root)
+    overrides = ProjectOverrides.load(root)
     orchestrator = AuditOrchestrator([
         ArchitectureAnalyzer(),
         CleanCodeAnalyzer(max_line_length=args.max_line_length),
@@ -915,7 +1013,9 @@ def main(argv: list[str] | None = None) -> int:
         ScalabilityAnalyzer(),
         TestingAnalyzer(),
     ])
-    report = orchestrator.run(scan)
+    report = orchestrator.run(
+        scan, domain_weights=overrides.domain_weights, custom_rules=overrides.custom_rules
+    )
 
     args.output.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
     _print_summary(report)

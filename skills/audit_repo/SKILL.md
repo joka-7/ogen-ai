@@ -21,9 +21,21 @@ is genuinely decoupled. That second pass is yours.
    and `--max-file-bytes`). It scans the tree, detects the tech stack, and writes both a JSON
    file and a short score summary to stdout.
 2. Load `audit_data.json`. Each domain has a `score`, a `confidence` (`high`/`medium`/`low`),
-   `findings` (each with a `file`/`line` when available), and raw `metrics`. Treat the score
-   as a first-pass mechanical signal, not the final word — `confidence` tells you how much to
-   trust it as-is:
+   `findings` (each with a `file`/`line` when available), and raw `metrics`. There are also
+   two report-level fields sourced from the project's own `ai-project-config.toml`, if one
+   exists (scaffolded by the sibling `customize_config` skill — see its SKILL.md; don't
+   scaffold or edit that file yourself from here):
+   - `domain_weights` — the resolved weight per domain (default `1.0`) already baked into
+     `overall_score` as a renormalized weighted mean. Don't re-average the six domain scores
+     yourself with a plain mean — use `overall_score` as reported, or recompute with the same
+     weights if you adjust a domain's score in step 5.
+   - `custom_rules` — project-specific conventions to apply, in addition to the domain
+     definitions below, during your manual review (mainly relevant to Architecture & Design
+     and Clean Code). Treat each as an extra checklist item, not a replacement for the base
+     definitions.
+
+   Treat each domain's `score` as a first-pass mechanical signal, not the final word —
+   `confidence` tells you how much to trust it as-is:
    - **high** (Clean Code, Security): mostly countable facts (annotation coverage, regex
      hits). Spot-check a couple of findings, don't re-derive the whole domain.
    - **medium** (Scalability, Testing): the metric is real but the interpretation needs
@@ -37,10 +49,13 @@ is genuinely decoupled. That second pass is yours.
    "I/O-only" and confirm whether the docstring narrates the *approach* — why this algorithm,
    what the flow does, edge cases, complexity — versus a bare parameter/return list. The
    script's keyword-and-length heuristic is a coarse proxy; your read is the real score.
-5. Recompute each domain's final score (0-100) and an overall score (mean of the six) —
-   adjusting the script's number up or down based on what you actually found. If a domain
-   genuinely doesn't apply (e.g. a pure library with no infra to assess for "infrastructure
-   security hygiene"), say so explicitly in that section rather than forcing a number.
+5. Recompute each domain's final score (0-100) based on what you actually found. If you
+   change a domain's score from the script's number, also recompute the overall score
+   yourself using `domain_weights` (weighted mean, renormalized to 0-100) rather than
+   reporting the script's stale `overall_score`. If a domain genuinely doesn't apply (e.g. a
+   pure library with no infra to assess for "infrastructure security hygiene"), say so
+   explicitly in that section rather than forcing a number — and exclude it from your
+   recomputed overall the same way a `0.0` weight would.
 6. Write `AUDIT_REPORT.md` at the target project's root using the structure below.
 
 ## Domain definitions (score against these, not just the raw metrics)
@@ -70,7 +85,7 @@ is genuinely decoupled. That second pass is yours.
 # Repository Audit Report
 
 **Project:** <name> · **Stack:** <detected languages/frameworks> · **Date:** <date>
-**Overall score:** <n>/100
+**Overall score:** <n>/100 <if any weight != 1.0: "(weighted — see Methodology)">
 
 ## Architecture & Design — <score>/100 (confidence: <level>)
 <2-4 sentence summary>
@@ -88,7 +103,9 @@ is genuinely decoupled. That second pass is yours.
 
 ## Methodology
 <one paragraph: what run_audit.py measured mechanically vs. what you verified by reading
-code directly, and any domain you excluded or scored on incomplete signal>
+code directly, and any domain you excluded or scored on incomplete signal. If any
+domain_weights differ from 1.0, or custom_rules were applied, say so here — name the
+non-default weights and list which custom rules were checked.>
 ```
 
 ## Rules

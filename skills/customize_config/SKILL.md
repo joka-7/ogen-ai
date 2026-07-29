@@ -45,42 +45,26 @@ parent project's root instead.
    It parses the file and prints the resolved rules/weights plus any warnings (unknown domain
    name — likely a typo against the six audit domains; negative weight — clamped to `0.0`).
    Fix anything it flags before telling the user you're done.
-4. **Custom rules are agent-applied, not script-enforced.** When the `audit_repo` skill next
-   runs, its own instructions have it read this file's `conventions` and factor them into its
-   manual review of Architecture & Design / Clean Code — there is no regex enforcing them.
-   Don't imply to the user that a custom rule is being mechanically checked; it's a checklist
-   item for the auditing agent's read-through.
-5. **Weights are not yet consumed by `run_audit.py`.** As of this skill's introduction, the
-   script always uses an unweighted mean across the six domains. Applying `[audit.weights]`
-   requires a small, separate change to `run_audit.py` (see below) — don't tell the user their
-   weights are already affecting scores until that change has actually landed.
-
-## `run_audit.py` integration (not yet implemented — describes the follow-up change)
-
-To make `[audit.weights]` actually affect scoring, `skills/audit_repo/run_audit.py` needs:
-
-1. A small config loader of its own — `tomllib`-parse `ai-project-config.toml` if present at
-   the audited project's root, defaulting every domain to weight `1.0` if the file is absent
-   or a domain isn't listed. Kept self-contained inside `run_audit.py` (not imported from
-   `customize_config/init_config.py`) so the two skills stay independently copyable — this
-   repo's `ai-sync` can place `skills/` in `symlink` or `copy` mode, and a skill script should
-   never assume a sibling skill's exact path.
-2. `AuditOrchestrator.run()` gains a `domain_weights: dict[str, float]` parameter. The overall
-   score changes from a plain mean to a weighted mean, renormalized so it stays 0-100:
-   `overall = sum(score * weight for domain) / sum(weight for domain)` (guarding
-   `sum(weights) == 0`, which would otherwise divide by zero if every domain were zeroed out).
-3. `AuditReport` gains a `custom_rules: list[str]` field, populated from
-   `ai-project-config.toml` and passed through untouched into the JSON output — `run_audit.py`
-   doesn't interpret them, it only carries them to where step 4 above reads them.
-4. `main()` gains nothing new by default: it auto-detects `ai-project-config.toml` at
-   `--project`'s root (no new required flag), matching how it already auto-detects the
-   project's own `ai-config.toml` conceptually in the wider `ai-sync` flow.
+4. **Custom rules are agent-applied, not script-enforced.** `run_audit.py` reads
+   `[rules.custom].conventions` and passes them through into `audit_data.json` untouched — it
+   never checks them itself. When the `audit_repo` skill's agent does its manual review of
+   Architecture & Design / Clean Code, its own SKILL.md has it apply these conventions during
+   that read-through. Don't imply to the user that a custom rule is being mechanically
+   enforced by a regex; it's a checklist item for the auditing agent's judgment.
+5. **Weights are live in `run_audit.py`.** `AuditOrchestrator.run()` resolves each domain's
+   weight (default `1.0` for anything not listed in `[audit.weights]`) and computes the
+   overall score as a weighted mean, renormalized to stay 0-100 — see
+   `skills/audit_repo/run_audit.py`'s `ProjectOverrides.load` and `AuditOrchestrator.run` for
+   the exact algorithm. Each domain's own 0-100 score is never itself weighted, only its
+   contribution to the overall figure — `audit_data.json`'s `domain_weights` field shows the
+   resolved weight per domain so this is never opaque to whoever reads the report.
 
 ## Rules
 
 - Don't write or suggest writing anything under `.ai/` to satisfy a customization request —
   that's the one thing this skill exists to prevent.
-- Don't claim a weight is affecting the audit's overall score until the `run_audit.py` change
-  above has actually been made in this repo.
 - Keep `[rules.custom]` entries short and mechanically checkable-by-a-reader — a vague rule
   ("write good code") gives the auditing agent nothing to judge against.
+- A domain weighted to `0.0` is excluded from the overall score but still gets its own score
+  and findings reported — never omit a domain's section from `AUDIT_REPORT.md` just because
+  its weight is `0`.
