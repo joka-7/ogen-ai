@@ -85,7 +85,16 @@ specifics into the submodule.
 - `rules/languages/{python,typescript,javascript,kotlin}.md` — per-language conventions.
 - `rules/frameworks/react.md` — framework conventions.
 - `rules/practices/{testing,git-commits,security}.md` — cross-cutting practices.
-- `skills/{conventional-commit,scaffold-python-service}/SKILL.md` — example portable skills.
+- `skills/{conventional-commit,scaffold-python-service,audit_repo,customize_config}/SKILL.md`
+  — example portable skills. `audit_repo` ships `run_audit.py`, a stdlib-only collector
+  script the skill runs before writing its report. `customize_config` ships
+  `init_config.py`, which scaffolds a parent project's `ai-project-config.toml` — a
+  project-local override file (custom coding rules + per-domain audit weights) that
+  lives outside `.ai/` on purpose, since the submodule itself must never be hand-edited.
+  `run_audit.py` reads that same file directly (`ProjectOverrides.load`, self-contained —
+  not imported cross-skill) to bias `AuditOrchestrator`'s overall score toward the domains
+  a project weights higher, and to pass custom rules through for the auditing agent to
+  apply. See each skill's own docstrings for the algorithms.
 - `commands/claude/{review,test}.md` — example Claude slash commands (`$ARGUMENTS` tail).
 - `bin/ai-sync` — the generator/installer. Python 3.11+ (tomllib), **stdlib only by design**.
 - `adapters/` — templates for tool-specific emission (currently the Cursor `.mdc` template).
