@@ -1,0 +1,37 @@
+# Copy this to your project root as `ai-config.toml` and edit.
+# Then run:  python .ai/bin/ai-sync
+
+[project]
+name = "my-project"
+
+[stack]
+# Only the fragments you list here get compiled into AGENTS.md.
+# Names map to files under .ai/rules/{languages,frameworks,practices}/<name>.md
+languages  = ["python", "typescript"]
+frameworks = ["react"]
+practices  = ["testing", "git-commits", "security"]
+
+[tools]
+# Which assistants to wire up. "agents" (the root AGENTS.md) is always produced.
+#   claude  -> CLAUDE.md symlink + .claude/skills + .claude/commands
+#   gemini  -> GEMINI.md symlink + .agents/skills
+#   cursor  -> native AGENTS.md (set cursor_mdc below for glob-scoped .mdc rules)
+#   copilot -> .github/copilot-instructions.md symlink
+targets = ["claude", "cursor", "gemini", "copilot"]
+
+[options]
+# How generated tool files are placed:
+#   "symlink" (default) — CLAUDE.md/GEMINI.md/etc. link to AGENTS.md; skills/commands
+#                         link into the submodule. Zero drift, but links dangle in
+#                         sandboxes/containers without the initialized submodule, and
+#                         break on Windows.
+#   "copy"             — real files/dirs written into the project. Portable and
+#                         container-safe; re-run ai-sync after pulling rule updates.
+link_mode = "symlink"
+# Path (relative to project root) to project-specific rules appended verbatim
+# to AGENTS.md — build/test commands, "do not touch" boundaries, architecture notes.
+local_tail = "ai-config.local.md"
+
+# Emit per-language Cursor rules under .cursor/rules/*.mdc with glob scoping.
+# Off by default since Cursor reads the root AGENTS.md natively.
+cursor_mdc = false
