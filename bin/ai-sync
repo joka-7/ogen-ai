@@ -230,6 +230,10 @@ def wire_tools(submodule: Path, project_root: Path, m: dict, agents_path: Path,
         place(agents_path, project_root / "CLAUDE.md")
         if (submodule / "skills").exists():
             place(submodule / "skills", project_root / ".claude" / "skills")
+        # Role subagents are opt-in: they're opinionated and not every project wants them.
+        # Note .claude/agents (Claude subagents) is unrelated to .agents/skills (Gemini) below.
+        if opts.get("claude_agents", False) and (submodule / "agents" / "claude").exists():
+            place(submodule / "agents" / "claude", project_root / ".claude" / "agents")
         if (submodule / "commands" / "claude").exists():
             place(submodule / "commands" / "claude", project_root / ".claude" / "commands")
 

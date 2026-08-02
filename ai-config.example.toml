@@ -14,6 +14,7 @@ practices  = ["testing", "git-commits", "security"]
 [tools]
 # Which assistants to wire up. "agents" (the root AGENTS.md) is always produced.
 #   claude  -> CLAUDE.md symlink + .claude/skills + .claude/commands
+#              (+ .claude/agents when claude_agents = true below)
 #   gemini  -> GEMINI.md symlink + .agents/skills
 #   cursor  -> native AGENTS.md (set cursor_mdc below for glob-scoped .mdc rules)
 #   copilot -> .github/copilot-instructions.md symlink
@@ -35,3 +36,9 @@ local_tail = "ai-config.local.md"
 # Emit per-language Cursor rules under .cursor/rules/*.mdc with glob scoping.
 # Off by default since Cursor reads the root AGENTS.md natively.
 cursor_mdc = false
+
+# Install the role subagents (qa, architect, product, engineering-manager, ciso,
+# planner, developer) into .claude/agents, enabling /role-review and /role.
+# Off by default: they're opinionated, and a project that doesn't run multi-role
+# reviews shouldn't carry seven agent descriptions in its context.
+claude_agents = false
