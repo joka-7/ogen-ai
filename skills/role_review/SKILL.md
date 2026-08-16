@@ -1,13 +1,13 @@
 ---
 name: role-review
-description: The shared output contract for the role agents (qa, architect, product, engineering-manager, ciso, planner) — fixed report schema, severity scale, finding-ID convention, evidence rules, and the context-budget protocol for exploring a large repo without reading all of it. Load this whenever you are acting as one of those roles reviewing a target repository, before writing any findings, so every role's report is shaped the same way and can be aggregated and deduplicated.
+description: The shared output contract for the role agents (qa, architect, product, engineering-manager, sre, ciso, planner) — fixed report schema, severity scale, finding-ID convention, evidence rules, and the context-budget protocol for exploring a large repo without reading all of it. Load this whenever you are acting as one of those roles reviewing a target repository, before writing any findings, so every role's report is shaped the same way and can be aggregated and deduplicated.
 ---
 
 # Role Review
 
 The common contract every role agent follows. Roles differ in *what they look for*; this
-file fixes *how they look* and *how they report*, so five reports written in five isolated
-contexts can be merged into one backlog without reconciliation work.
+file fixes *how they look* and *how they report*, so reports written in isolated contexts
+can be merged into one backlog without reconciliation work.
 
 ## Context budget
 
@@ -72,8 +72,8 @@ that has not prioritized anything.
 ## Finding IDs
 
 Prefix by role, two digits, numbered in the order you report them: `QA-01`, `ARC-01`,
-`PRD-01`, `EM-01`, `SEC-01`. The aggregation step cites these when it merges duplicates, so
-they must be stable within a report and unique across roles.
+`PRD-01`, `EM-01`, `SRE-01`, `SEC-01`. The aggregation step cites these when it merges
+duplicates, so they must be stable within a report and unique across roles.
 
 ## Steps
 

@@ -31,33 +31,40 @@ submodule, so there's nothing to keep in sync by hand.
 
 ## Role agents
 
-Seven subagents that review a target repo from different professional lenses and converge on
+Eight subagents that review a target repo from different professional lenses and converge on
 one backlog. Off by default; set `claude_agents = true` in `[options]` to install them.
 
 ```bash
-/role-review <path-or-git-url>    # full pass: 5 roles in parallel → prioritized backlog
+/role-review <path-or-git-url>    # full pass: 6 roles in parallel → prioritized backlog
 /role ciso <path-or-git-url>      # one lens on demand
+/role-backlog <path-or-git-url>   # re-aggregate reports already on disk, no re-review
+/role-implement 1,3 <path-or-git-url>  # implement approved backlog items — the only way in
 ```
 
 `/role-review` clones (or uses) the target, runs the `audit-repo` scan **once**, fans out
-`qa`, `architect`, `product`, `engineering-manager`, and `ciso` in parallel — each in its own
-context, each reading only its slice of the scan — then runs `planner` to deduplicate the five
-reports into `BACKLOG.md`. Reports land in `<target>/.ai-reviews/`, which the command adds to
-`.git/info/exclude` so they never dirty the target's git status.
+`qa`, `architect`, `product`, `engineering-manager`, `sre`, and `ciso` in parallel — each in
+its own context, each reading only its slice of the scan — then runs `planner` to deduplicate
+the reports into `BACKLOG.md`. Reports land in `<target>/.ai-reviews/`, which the command adds
+to `.git/info/exclude` so they never dirty the target's git status. A `manifest.json` in the
+same directory tracks which commit each run describes, archiving prior reports under
+`archive/<sha>/` when the target moves on rather than silently overwriting them.
 
-It stops there. `developer` is the only role that can edit anything, and it runs only after
-you approve specific backlog items by name.
+It stops there. `developer` is the only role that can edit anything, and `/role-implement` is
+the only command that can invoke it — it refuses to run with no items named, checks the
+backlog isn't stale against the current commit, and requires a clean worktree before it will
+launch anything.
 
 The trust boundary is enforced by tool grants, not by instructions: `ciso` and `planner` have
 no `Bash` at all — `ciso` structurally cannot execute code from an untrusted repo — and the
 reviewing roles have no `Edit`/`Write`, returning reports for the command to persist.
 
 One gap remains: a subagent's `tools:` list can grant or withhold `Bash`, but can't express
-"Bash, but only read commands", and four reviewers need it to run a test suite or read git
-metadata. `adapters/claude-agent-permissions.json` closes that with `permissions.deny` rules —
-merge it into your project's `.claude/settings.json` by hand (`ai-sync` never writes that file;
-it's yours). Note those rules apply **project-wide, not per-agent**, so they'll also block you
-from running those commands in a normal session — drop any line that conflicts with how you work.
+"Bash, but only read commands", and five reviewers need it to run a test suite, read git
+metadata, or read deployment manifests. `adapters/claude-agent-permissions.json` closes that
+with `permissions.deny` rules — merge it into your project's `.claude/settings.json` by hand
+(`ai-sync` never writes that file; it's yours). Note those rules apply **project-wide, not
+per-agent**, so they'll also block you from running those commands in a normal session — drop
+any line that conflicts with how you work.
 
 ## Set up in a new project
 
@@ -129,7 +136,21 @@ containerized/CI/cross-platform agent runs.
   not to* — that's what auto-delegation keys off. Grant the narrowest tool set that lets it do
   its job: withholding a tool is the only real enforcement, since the body's instructions are
   advisory. Reviewing roles should load the `role-review` skill for the shared output schema
-  rather than restating it.
+  rather than restating it. A new reviewing role must also be added to
+  `skills/role_review/SKILL.md`'s finding-ID list and to the fan-out in
+  `commands/claude/role-review.md` and `commands/claude/role.md` —
+  `tests/test_conventions.py` fails until those enumerations agree.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Covers `ai-sync`'s generator behavior (assembly, symlink/copy modes, the `claude_agents` gate,
+idempotent re-runs), the role-review run manifest, and the agent/skill/command conventions
+above — including the tool-grant matrix that is the actual enforcement of the trust boundary.
+Run this before and after any change under `bin/`, `agents/`, `commands/`, or `skills/`.
 
 ## Keep it lean
 

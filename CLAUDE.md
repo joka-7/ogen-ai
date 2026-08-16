@@ -40,13 +40,23 @@ Gemini, Copilot, Codex and any other AGENTS.md-aware tool read them. See `README
 - `rules/{base,languages/*,frameworks/*,practices/*}.md` — the fragments.
 - `skills/<name>/SKILL.md` — portable Agent Skills (frontmatter `name` + `description`).
 - `commands/claude/*.md` — Claude slash commands (least portable; Claude-primary).
-- `agents/claude/*.md` — role subagents (frontmatter `name` + `description` + `tools` +
+- `agents/claude/*.md` — eight role subagents (frontmatter `name` + `description` + `tools` +
   `model`). Claude-only, opt-in via `[options] claude_agents`. Tool grants are the
   enforcement — `ciso`/`planner` get no Bash, only `developer` gets Edit/Write.
+- `skills/role_review/run_manifest.py` — tracks role-review runs per commit in a target
+  repo's `.ai-reviews/manifest.json`; archives prior reports when the target moves on.
 - `bin/ai-sync` — the generator/installer (Python 3.11+, stdlib only).
+- `tests/` — stdlib `unittest` suite for `bin/ai-sync`, `run_manifest.py`, and the
+  agent/skill/command conventions. Run before and after touching any of the above.
 - `adapters/`, `ai-config.example.toml`, `README.md`.
 
 ## How to work on it / test
+
+Run the test suite first:
+
+```bash
+python -m unittest discover -s tests -v
+```
 
 `ai-sync` runs from a *parent* project root. To test changes without a real submodule:
 
@@ -59,7 +69,7 @@ python .ai/bin/ai-sync                          # then verify AGENTS.md + symlin
 ```
 
 Re-runs must stay idempotent; hand-written files at target paths must not be clobbered
-without `--force`. Both are covered — keep them covered.
+without `--force`. Both are covered by `tests/test_ai_sync.py` — keep them covered.
 
 ## Open next steps (from the design conversation)
 

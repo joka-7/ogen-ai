@@ -91,7 +91,7 @@ specifics into the submodule.
 - `rules/languages/{python,typescript,javascript,kotlin}.md` — per-language conventions.
 - `rules/frameworks/react.md` — framework conventions.
 - `rules/practices/{testing,git-commits,security}.md` — cross-cutting practices.
-- `agents/claude/*.md` — the seven role subagents (§10) plus `skills/role_review/SKILL.md`,
+- `agents/claude/*.md` — the eight role subagents (§10) plus `skills/role_review/SKILL.md`,
   the output contract they share.
 - `skills/{conventional-commit,scaffold-python-service,audit_repo,customize_config}/SKILL.md`
   — example portable skills. `audit_repo` ships `run_audit.py`, a stdlib-only collector
@@ -169,14 +169,40 @@ containerized/CI/cross-platform agent runs.
 
 ## 7. How it's tested
 
-`ai-sync` runs from a *parent* project root. To test without a real submodule, create a temp
-dir, `ln -s <ogen-ai> .ai`, drop in an `ai-config.toml`, and run `ai-sync --dry-run` then
-for real. Verified behaviors: correct AGENTS.md assembly (base + languages + frameworks +
-practices + local tail); symlink resolution (CLAUDE.md == AGENTS.md); idempotent re-runs;
-non-symlink collisions skipped without `--force`; copy mode producing real files that survive
-`.ai/` being removed; the `claude_agents` gate producing no `.claude/agents` action when the
-key is absent or false and wiring it when true; and copy mode excluding `__pycache__`/`*.pyc`
-from copied trees. Keep all of these green when changing the generator.
+`tests/` holds an executable `unittest` suite — run it with
+`python -m unittest discover -s tests -v`. It used to be a prose list of behaviors to keep
+green by hand; that list is now the test names themselves, so this section just says where
+each concern lives instead of restating it.
+
+- `tests/test_ai_sync.py` builds the *parent* project root harness against a fixture
+  submodule (a temp dir, `ln -s` to a small fixture `.ai/`, an `ai-config.toml`, then
+  `ai-sync --dry-run` and for real) and covers: AGENTS.md assembly order (base + languages +
+  frameworks + practices + local tail); missing-fragment warnings; symlink resolution
+  (`CLAUDE.md == AGENTS.md`, always relative); idempotent re-runs; non-symlink collisions
+  skipped without `--force`; copy mode producing real files that survive `.ai/` being removed
+  and excluding `__pycache__`/`*.pyc`; the `claude_agents` gate producing no `.claude/agents`
+  action when the key is absent, false, or the `claude` target is missing, and wiring it when
+  true; `gemini`/`copilot`/`cursor_mdc` targets; and that `--dry-run` changes nothing at all,
+  including the parent directories of would-be targets — a real bug the suite caught (§7a).
+- `tests/test_conventions.py` asserts this repo's own `agents/`, `skills/`, and `commands/`
+  content against the conventions §10 describes, since `ai-sync` performs no frontmatter
+  validation of its own. This is what makes the tool-grant matrix (§10, "Tool grants are the
+  enforcement") a checked invariant rather than a claim: `Edit`/`Write` only on `developer`,
+  no `Bash` on `ciso` or `planner`, every reviewer's finding-ID prefix present in the shared
+  contract, and the fan-out and single-role commands agreeing on the role list.
+- `tests/test_run_manifest.py` covers `skills/role_review/run_manifest.py` (§10): opening and
+  reusing a run, archiving on a new commit, staleness detection via exit code, and the CLI's
+  usage errors.
+
+### 7a. A bug the suite found
+
+Writing `test_dry_run_changes_nothing_at_all` surfaced that `--dry-run` printed "nothing
+changed" while still creating empty `.claude/` and `.github/` directories — `write_file`,
+`rel_symlink`, `place_file`, and `place_tree` each called `mkdir` on the target's parent
+before checking the dry-run flag. Fixed by moving those `mkdir` calls behind the same guard
+as the writes they precede. Left as a note because it is exactly the kind of defect a
+behavioral suite catches that manual `--dry-run` inspection does not: the directories were
+easy to miss by eye and easy to assert against.
 
 ---
 
@@ -211,34 +237,51 @@ listed next step. Recorded here because it introduces the fourth artifact type.
 
 ### What it is
 
-Seven subagents under `agents/claude/`. Five *reviewing* roles — `qa`, `architect`, `product`,
-`engineering-manager`, `ciso` — fan out in parallel over a target repo, each in its own
-context. `planner` then aggregates their five reports into one deduplicated, prioritized
-backlog. `developer` implements, but only items a human has explicitly approved. Driven by
-`/role-review` (full pass) and `/role <name>` (single lens).
+Eight subagents under `agents/claude/`. Six *reviewing* roles — `qa`, `architect`, `product`,
+`engineering-manager`, `sre`, `ciso` — fan out in parallel over a target repo, each in its own
+context. `planner` then aggregates their reports into one deduplicated, prioritized backlog.
+`developer` implements, but only items a human has explicitly approved. Driven by
+`/role-review` (full pass), `/role <name>` (single lens), `/role-backlog` (re-aggregate
+without re-reviewing), and `/role-implement` (the approval gate — see below).
+
+`sre` was added after the original five to close a gap the design already knew about:
+`engineering-manager`'s own body notes that `audit_data.json` has no delivery-health domain,
+and neither it nor `architect` asks whether a failure is visible, survivable, or reversible.
+It reviews deployment and configuration surface — healthchecks, graceful shutdown, retries,
+observability, resource limits, rollback safety — never application source, so it does not
+duplicate `architect`. It is `sonnet`: matching deployment artifacts against a known
+operability checklist is pattern work, not the open-ended trade-off reasoning `opus` is
+reserved for. Its `Bash` grant is fenced rather than withheld outright (unlike `ciso`): git
+metadata on deploy paths is useful and inert, but its body explicitly forbids `docker build`,
+`terraform plan`/`apply`, `kubectl`, and `helm` — a `plan` downloads and runs provider
+plugins, and a build runs the target repo's own tooling, both of which are executing
+untrusted code from the agent's side regardless of what the command name suggests. The
+permissions adapter (below) now denies those too.
 
 ### Why agents rather than more skills
 
 Skills are procedures the *current* agent loads into the *current* context. That is the wrong
-shape here for two reasons. First, isolation is the point: five lenses reviewing the same repo
-should not see each other's conclusions, or they converge and stop being five lenses. Second,
-a review of a large repo is exactly the workload that should not share a context window —
-five roles each burning 25 file reads in one context would blow it out, while five subagents
-each burning 25 in their own do not.
+shape here for two reasons. First, isolation is the point: several lenses reviewing the same
+repo should not see each other's conclusions, or they converge and stop being separate
+lenses. Second, a review of a large repo is exactly the workload that should not share a
+context window — six roles each burning 25 file reads in one context would blow it out, while
+six subagents each burning 25 in their own do not.
 
 The shared *methodology* is still a skill: `skills/role_review/SKILL.md` holds the output
 schema, severity scale, finding-ID convention, and context-budget protocol. Duplicating that
-across seven agent files would have been seven copies to drift apart. Roles load it; they do
+across eight agent files would have been eight copies to drift apart. Roles load it; they do
 not restate it.
 
 ### Reuse of `audit_repo` rather than duplication
 
-`audit_repo` already scores six domains that map almost one-to-one onto the reviewing roles.
-Rather than re-implement that analysis in seven prompts, the orchestrator runs `run_audit.py`
-**once** and writes `audit_data.json` into the reviews directory; each role reads only its own
-domain slice as a mechanical starting point, then does the qualitative work a static scan
-can't. One scan, five lenses. The alternative — each role invoking the scanner — would rescan
-the tree five times in parallel for five identical mechanical result sets.
+`audit_repo` already scores six domains that map closely onto most of the reviewing roles
+(`sre` is the exception — its lens is deployment surface, which `audit_repo` doesn't scan, so
+it works primarily from CI config and git metadata instead). Rather than re-implement that
+analysis in six prompts, the orchestrator runs `run_audit.py` **once** and writes
+`audit_data.json` into the reviews directory; each role reads only its own domain slice as a
+mechanical starting point, then does the qualitative work a static scan can't. One scan, many
+lenses. The alternative — each role invoking the scanner — would rescan the tree once per role
+for identical mechanical result sets.
 
 ### Tool grants are the enforcement
 
@@ -270,7 +313,7 @@ presenting the snippet as a drop-in.
 
 ### Opt-in by default
 
-Gated on `[options] claude_agents`, defaulting to `false`, mirroring `cursor_mdc`. Seven agent
+Gated on `[options] claude_agents`, defaulting to `false`, mirroring `cursor_mdc`. Eight agent
 descriptions are always-on context cost in any project that installs them, and a project that
 never runs a multi-role review shouldn't pay it. The consequence, worth remembering: the
 feature ships dormant and does nothing until a project flips the key.
@@ -281,3 +324,31 @@ Reports are written to `<target>/.ai-reviews/`, and the command appends that pat
 target's `.git/info/exclude` rather than its committed `.gitignore` — so reviews never dirty
 `git status` and never get committed by accident, without editing a tracked file. Nothing is
 ever written into `.ai/`, per the same boundary `customize_config` exists to enforce.
+
+### The run manifest
+
+`.ai-reviews/manifest.json`, written by `skills/role_review/run_manifest.py`, exists because
+findings are pinned to a commit — every report is stamped `@ <short-sha>` and a `file:line`
+is only meaningful against the code that produced it — but nothing recorded which commit a
+given set of reports described. `--begin` opens a run for the current sha, archiving the
+prior run's reports under `archive/<old-sha>/` if HEAD has moved, or reusing the run in place
+if it hasn't, so re-running the fan-out at one commit is idempotent the same way an `ai-sync`
+re-run is. `--status` exits non-zero when the reports on disk predate HEAD, which is what lets
+`/role-implement` refuse — or at least warn loudly before — implementing against a stale
+finding.
+
+### The approval gate is a command, not an inference
+
+The original design left the human-approval handoff as prose: `/role-review` and `/role` both
+state that `developer` must not be invoked, and the actual invocation was left to the main
+session inferring, from a later human message, that specific items were approved. That is the
+one load-bearing safety property in this whole layer, and it rested on inference rather than
+a checked step.
+
+`/role-implement` makes it a command instead. It requires a backlog to exist, refuses to run
+with an empty item list rather than guessing "the critical ones," checks the backlog's
+currency via the run manifest, requires a clean worktree so `developer`'s diff is
+attributable, and echoes the resolved backlog text back to the user before launching anything.
+It is the only command permitted to invoke `developer` — `/role-review`, `/role`, and
+`/role-backlog` all still refuse to, and `tests/test_conventions.py` checks that refusal is
+stated, not just implied, in each of their bodies.

@@ -37,8 +37,8 @@ local_tail = "ai-config.local.md"
 # Off by default since Cursor reads the root AGENTS.md natively.
 cursor_mdc = false
 
-# Install the role subagents (qa, architect, product, engineering-manager, ciso,
-# planner, developer) into .claude/agents, enabling /role-review and /role.
+# Install the role subagents (qa, architect, product, engineering-manager, sre,
+# ciso, planner, developer) into .claude/agents, enabling /role-review and /role.
 # Off by default: they're opinionated, and a project that doesn't run multi-role
 # reviews shouldn't carry seven agent descriptions in its context.
 claude_agents = false
