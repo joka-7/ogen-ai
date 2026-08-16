@@ -40,6 +40,9 @@ Gemini, Copilot, Codex and any other AGENTS.md-aware tool read them. See `README
 - `rules/{base,languages/*,frameworks/*,practices/*}.md` — the fragments.
 - `skills/<name>/SKILL.md` — portable Agent Skills (frontmatter `name` + `description`).
 - `commands/claude/*.md` — Claude slash commands (least portable; Claude-primary).
+- `agents/claude/*.md` — role subagents (frontmatter `name` + `description` + `tools` +
+  `model`). Claude-only, opt-in via `[options] claude_agents`. Tool grants are the
+  enforcement — `ciso`/`planner` get no Bash, only `developer` gets Edit/Write.
 - `bin/ai-sync` — the generator/installer (Python 3.11+, stdlib only).
 - `adapters/`, `ai-config.example.toml`, `README.md`.
 
@@ -72,6 +75,6 @@ without `--force`. Both are covered — keep them covered.
 ## Editing conventions
 
 - Fragments start with `## <Title>` and stay tight. One concern per fragment.
-- The `.ai` mount path is referenced in `commands/claude/*` and `README.md`; if it changes,
-  update those.
+- The `.ai` mount path is referenced in `commands/claude/*`, `agents/claude/*`,
+  `skills/*/SKILL.md`, and `README.md`; if it changes, update those.
 - `bin/ai-sync` is stdlib-only by design — don't add dependencies to it.

@@ -1,6 +1,6 @@
 # ogen-ai
 
-One source of truth for AI coding-assistant rules, skills, and commands, shared across
+One source of truth for AI coding-assistant rules, skills, commands, and agents, shared across
 every repo as a git submodule. Write rules once; Claude Code, Cursor, Gemini, Copilot,
 Codex and any other [AGENTS.md](https://agents.md)-aware tool read them.
 
@@ -26,6 +26,38 @@ submodule, so there's nothing to keep in sync by hand.
   standard) are symlinked into `.claude/skills` and `.agents/skills`.
 - **Commands** (`commands/claude/`) are symlinked into `.claude/commands`. Slash commands
   port poorly across tools, so these are Claude-Code-primary.
+- **Agents** (`agents/claude/`) are symlinked into `.claude/agents` — **only when
+  `claude_agents = true`**. Claude-only, and off by default. See [Role agents](#role-agents).
+
+## Role agents
+
+Seven subagents that review a target repo from different professional lenses and converge on
+one backlog. Off by default; set `claude_agents = true` in `[options]` to install them.
+
+```bash
+/role-review <path-or-git-url>    # full pass: 5 roles in parallel → prioritized backlog
+/role ciso <path-or-git-url>      # one lens on demand
+```
+
+`/role-review` clones (or uses) the target, runs the `audit-repo` scan **once**, fans out
+`qa`, `architect`, `product`, `engineering-manager`, and `ciso` in parallel — each in its own
+context, each reading only its slice of the scan — then runs `planner` to deduplicate the five
+reports into `BACKLOG.md`. Reports land in `<target>/.ai-reviews/`, which the command adds to
+`.git/info/exclude` so they never dirty the target's git status.
+
+It stops there. `developer` is the only role that can edit anything, and it runs only after
+you approve specific backlog items by name.
+
+The trust boundary is enforced by tool grants, not by instructions: `ciso` and `planner` have
+no `Bash` at all — `ciso` structurally cannot execute code from an untrusted repo — and the
+reviewing roles have no `Edit`/`Write`, returning reports for the command to persist.
+
+One gap remains: a subagent's `tools:` list can grant or withhold `Bash`, but can't express
+"Bash, but only read commands", and four reviewers need it to run a test suite or read git
+metadata. `adapters/claude-agent-permissions.json` closes that with `permissions.deny` rules —
+merge it into your project's `.claude/settings.json` by hand (`ai-sync` never writes that file;
+it's yours). Note those rules apply **project-wide, not per-agent**, so they'll also block you
+from running those commands in a normal session — drop any line that conflicts with how you work.
 
 ## Set up in a new project
 
@@ -92,6 +124,12 @@ containerized/CI/cross-platform agent runs.
 - **New skill:** add `skills/<name>/SKILL.md` (required frontmatter: `name`, `description`;
   make the description "pushy" so it triggers). Bundle scripts/templates in the folder.
 - **New command:** add `commands/claude/<name>.md`. Use `$ARGUMENTS` for the invocation tail.
+- **New agent:** add `agents/claude/<name>.md` (frontmatter: `name`, `description`, `tools`,
+  `model`; filename must match `name`). Say in the description both when to use it *and when
+  not to* — that's what auto-delegation keys off. Grant the narrowest tool set that lets it do
+  its job: withholding a tool is the only real enforcement, since the body's instructions are
+  advisory. Reviewing roles should load the `role-review` skill for the shared output schema
+  rather than restating it.
 
 ## Keep it lean
 

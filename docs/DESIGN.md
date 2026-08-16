@@ -10,7 +10,8 @@ up cold, read this end to end — it's the "why" that `CLAUDE.md` only summarize
 ## 1. Goal & constraints
 
 Build a single repository holding all AI coding-assistant configuration — rules, skills,
-and commands — shared across every project as a **git submodule mounted at `.ai/`**. One
+commands, and (later, §10) role agents — shared across every project as a **git submodule
+mounted at `.ai/`**. One
 source of truth, version-controlled, serving multiple tools (Claude Code, Gemini, Cursor,
 Copilot, Codex, …) and multiple languages (Python already in use; plus TypeScript,
 JavaScript, Kotlin, React, and more over time).
@@ -60,6 +61,8 @@ Owner context that shaped decisions:
     pin to).
   - **Skills**: `skills/` symlinked/copied into `.claude/skills` and `.agents/skills`.
   - **Commands**: `commands/claude/` into `.claude/commands`.
+  - **Agents**: `agents/claude/` into `.claude/agents`, gated on `[options] claude_agents`
+    (default off). See §10.
 
 **Why manifest-driven fragment assembly:** a Python repo shouldn't carry Kotlin rules into
 its context window — that's the exact bloat the ETH study warns about. The manifest picks
@@ -71,6 +74,9 @@ fragments so each project's AGENTS.md contains only what it uses.
 - **Commands** → slash commands. User-invoked. **Port poorly** — Claude, Cursor, Gemini CLI
   each have their own format — so these are Claude-Code-primary, with per-tool adapters only
   where it's worth it.
+- **Agents** → subagents with their own context, tool grant, and model tier. Delegated to, not
+  invoked directly. **Port worst of all** — no cross-tool standard exists — so they are
+  Claude-only and namespaced under `agents/claude/` for the same reason commands are. See §10.
 
 **Shared vs project-local:** the submodule holds the *reusable* layer. Each project still
 needs a thin *local* layer (build/test commands, "don't touch this dir") — that lives in the
@@ -85,6 +91,8 @@ specifics into the submodule.
 - `rules/languages/{python,typescript,javascript,kotlin}.md` — per-language conventions.
 - `rules/frameworks/react.md` — framework conventions.
 - `rules/practices/{testing,git-commits,security}.md` — cross-cutting practices.
+- `agents/claude/*.md` — the seven role subagents (§10) plus `skills/role_review/SKILL.md`,
+  the output contract they share.
 - `skills/{conventional-commit,scaffold-python-service,audit_repo,customize_config}/SKILL.md`
   — example portable skills. `audit_repo` ships `run_audit.py`, a stdlib-only collector
   script the skill runs before writing its report. `customize_config` ships
@@ -97,7 +105,8 @@ specifics into the submodule.
   apply. See each skill's own docstrings for the algorithms.
 - `commands/claude/{review,test}.md` — example Claude slash commands (`$ARGUMENTS` tail).
 - `bin/ai-sync` — the generator/installer. Python 3.11+ (tomllib), **stdlib only by design**.
-- `adapters/` — templates for tool-specific emission (currently the Cursor `.mdc` template).
+- `adapters/` — the Cursor `.mdc` template (emitted by the generator) and
+  `claude-agent-permissions.json` (a hand-merged snippet the generator never writes).
 - `ai-config.example.toml` — the manifest to copy into each project.
 
 Rule fragments are deliberately lean and start with `## <Title>`. They were written fresh
@@ -165,7 +174,9 @@ dir, `ln -s <ogen-ai> .ai`, drop in an `ai-config.toml`, and run `ai-sync --dry-
 for real. Verified behaviors: correct AGENTS.md assembly (base + languages + frameworks +
 practices + local tail); symlink resolution (CLAUDE.md == AGENTS.md); idempotent re-runs;
 non-symlink collisions skipped without `--force`; copy mode producing real files that survive
-`.ai/` being removed. Keep all of these green when changing the generator.
+`.ai/` being removed; the `claude_agents` gate producing no `.claude/agents` action when the
+key is absent or false and wiring it when true; and copy mode excluding `__pycache__`/`*.pyc`
+from copied trees. Keep all of these green when changing the generator.
 
 ---
 
@@ -186,7 +197,87 @@ non-symlink collisions skipped without `--force`; copy mode producing real files
 
 - Fragments start with `## <Title>`, stay tight, one concern each.
 - `bin/ai-sync` is **stdlib-only** — don't add dependencies.
-- The `.ai` mount path is referenced in `commands/claude/*` and `README.md`; update those if
-  it changes.
+- The `.ai` mount path is referenced in `commands/claude/*`, `agents/claude/*`,
+  `skills/*/SKILL.md`, and `README.md`; update those if it changes.
 - Keep AGENTS.md content to commands/constraints/conventions. No architecture-overview prose
   in the always-on file — put design narrative here in DESIGN.md instead.
+
+---
+
+## 10. The role-agent layer
+
+Added after the original design conversation, so unlike §1–§7 this was new scope rather than a
+listed next step. Recorded here because it introduces the fourth artifact type.
+
+### What it is
+
+Seven subagents under `agents/claude/`. Five *reviewing* roles — `qa`, `architect`, `product`,
+`engineering-manager`, `ciso` — fan out in parallel over a target repo, each in its own
+context. `planner` then aggregates their five reports into one deduplicated, prioritized
+backlog. `developer` implements, but only items a human has explicitly approved. Driven by
+`/role-review` (full pass) and `/role <name>` (single lens).
+
+### Why agents rather than more skills
+
+Skills are procedures the *current* agent loads into the *current* context. That is the wrong
+shape here for two reasons. First, isolation is the point: five lenses reviewing the same repo
+should not see each other's conclusions, or they converge and stop being five lenses. Second,
+a review of a large repo is exactly the workload that should not share a context window —
+five roles each burning 25 file reads in one context would blow it out, while five subagents
+each burning 25 in their own do not.
+
+The shared *methodology* is still a skill: `skills/role_review/SKILL.md` holds the output
+schema, severity scale, finding-ID convention, and context-budget protocol. Duplicating that
+across seven agent files would have been seven copies to drift apart. Roles load it; they do
+not restate it.
+
+### Reuse of `audit_repo` rather than duplication
+
+`audit_repo` already scores six domains that map almost one-to-one onto the reviewing roles.
+Rather than re-implement that analysis in seven prompts, the orchestrator runs `run_audit.py`
+**once** and writes `audit_data.json` into the reviews directory; each role reads only its own
+domain slice as a mechanical starting point, then does the qualitative work a static scan
+can't. One scan, five lenses. The alternative — each role invoking the scanner — would rescan
+the tree five times in parallel for five identical mechanical result sets.
+
+### Tool grants are the enforcement
+
+The trust boundary is expressed in `tools:`, not in prose, because prose is advisory and a
+tool grant is not:
+
+- `ciso` and `planner` get **no `Bash`**. For `ciso` this is the substantive guarantee that a
+  security review of an untrusted repo never executes that repo's code — no scanner, no build,
+  no test suite. It reads and greps, nothing else.
+- Reviewing roles get **no `Edit`/`Write`**. They return their report as their final message
+  and the orchestrating command persists it. A reviewer structurally cannot alter what it
+  reviews.
+- Only `developer` can modify a repo, and only against named, human-approved items.
+
+Model tiers follow the reasoning load rather than the role's seniority: `opus` for `architect`,
+`ciso`, `planner`, and `developer` (design judgment, security false-negative cost, cross-report
+synthesis, and code that must pass strict gates); `sonnet` for `qa`, `product`, and
+`engineering-manager`, which are largely mechanical or metadata-driven. Aliases, not pinned
+model IDs, so the agents survive version bumps.
+
+**The one gap:** `tools:` is all-or-nothing per tool. It cannot express "Bash, but only read
+commands", and four reviewers need Bash to run a test suite or read git metadata. Their
+read-only constraint is therefore prompt-level, backed by
+`adapters/claude-agent-permissions.json` — `permissions.deny` rules the user merges into
+their own `.claude/settings.json`. Not auto-installed: that file is hand-maintained, so
+writing it would either clobber it or be skipped by the no-clobber invariant. Those rules are
+also project-wide rather than per-agent, which the README states plainly rather than
+presenting the snippet as a drop-in.
+
+### Opt-in by default
+
+Gated on `[options] claude_agents`, defaulting to `false`, mirroring `cursor_mdc`. Seven agent
+descriptions are always-on context cost in any project that installs them, and a project that
+never runs a multi-role review shouldn't pay it. The consequence, worth remembering: the
+feature ships dormant and does nothing until a project flips the key.
+
+### Output lands outside this submodule
+
+Reports are written to `<target>/.ai-reviews/`, and the command appends that path to the
+target's `.git/info/exclude` rather than its committed `.gitignore` — so reviews never dirty
+`git status` and never get committed by accident, without editing a tracked file. Nothing is
+ever written into `.ai/`, per the same boundary `customize_config` exists to enforce.
