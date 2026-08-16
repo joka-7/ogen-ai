@@ -104,7 +104,8 @@ def build_agents_md(submodule: Path, project_root: Path, m: dict, rep: Reporter)
 
 def rel_symlink(target: Path, link: Path, rep: Reporter, force: bool) -> None:
     """Create `link` -> `target` as a relative symlink, idempotently."""
-    link.parent.mkdir(parents=True, exist_ok=True)
+    if not rep.dry:
+        link.parent.mkdir(parents=True, exist_ok=True)
     relative = os.path.relpath(target, link.parent)
     if link.is_symlink():
         if link.readlink() == Path(relative):
@@ -128,7 +129,8 @@ def _rmtree(p: Path) -> None:
 
 
 def write_file(path: Path, content: str, rep: Reporter) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if not rep.dry:
+        path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink() and not rep.dry:
         path.unlink()
     rep.act("write", path)
@@ -154,7 +156,8 @@ def _ours_file(dest: Path) -> bool:
 
 def place_file(src: Path, dest: Path, rep: Reporter, force: bool) -> None:
     """Copy src -> dest as a real file (copy mode). Refuses to clobber unmanaged files."""
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    if not rep.dry:
+        dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.is_symlink():
         if not rep.dry:
             dest.unlink()
@@ -171,7 +174,8 @@ def place_file(src: Path, dest: Path, rep: Reporter, force: bool) -> None:
 
 def place_tree(src: Path, dest: Path, rep: Reporter, force: bool) -> None:
     """Copy a directory tree src -> dest (copy mode). Marks it managed so re-runs refresh safely."""
-    dest.parent.mkdir(parents=True, exist_ok=True)
+    if not rep.dry:
+        dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.is_symlink():
         if not rep.dry:
             dest.unlink()

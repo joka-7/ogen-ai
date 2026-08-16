@@ -235,17 +235,18 @@ class TestNoClobber(SyncHarness):
         self.assertIn("is not managed by ai-sync — skipped", result.stderr)
         self.assertTrue((skills / "mine.md").exists())
 
-    def test_dry_run_writes_no_files(self) -> None:
+    def test_dry_run_changes_nothing_at_all(self) -> None:
         self.write_config(languages=["python"], targets=["claude", "gemini", "copilot"])
-        result = self.run_sync("--dry-run")
+        before = sorted(p.relative_to(self.project) for p in self.project.rglob("*"))
 
+        result = self.run_sync("--dry-run")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("would write", result.stdout)
-        for path in (self.agents_md, self.claude_md, self.project / "GEMINI.md",
-                     self.project / ".claude" / "skills"):
-            with self.subTest(path=path.name):
-                self.assertFalse(path.exists() or path.is_symlink(),
-                                 f"dry-run must not create {path}")
+
+        after = sorted(p.relative_to(self.project) for p in self.project.rglob("*"))
+        self.assertEqual(after, before,
+                         "dry-run reports 'nothing changed' and must mean it — "
+                         "including the parent directories of would-be targets")
 
 
 class TestCopyMode(SyncHarness):
