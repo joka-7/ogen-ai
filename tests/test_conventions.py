@@ -28,6 +28,7 @@ EXPECTED_AGENTS: dict[str, tuple[list[str], str]] = {
     "architect": (["Read", "Grep", "Glob", "Bash", "Skill"], "opus"),
     "product": (["Read", "Grep", "Glob", "Bash", "Skill"], "sonnet"),
     "engineering-manager": (["Read", "Grep", "Glob", "Bash", "Skill"], "sonnet"),
+    "sre": (["Read", "Grep", "Glob", "Bash", "Skill"], "sonnet"),
     "ciso": (["Read", "Grep", "Glob", "Skill"], "opus"),
     "planner": (["Read", "Grep", "Glob", "Skill"], "opus"),
     "developer": (["Read", "Grep", "Glob", "Bash", "Edit", "Write", "Skill"], "opus"),
@@ -40,6 +41,7 @@ REVIEWER_PREFIXES: dict[str, str] = {
     "architect": "ARC",
     "product": "PRD",
     "engineering-manager": "EM",
+    "sre": "SRE",
     "ciso": "SEC",
 }
 
@@ -150,8 +152,8 @@ class TestSharedReviewContract(unittest.TestCase):
         for name in REVIEWER_PREFIXES:
             with self.subTest(agent=name):
                 _, _, body = parse_frontmatter(AGENTS_DIR / f"{name}.md")
-                self.assertIn("role-review", body,
-                              "reviewing roles must load the shared schema skill")
+                self.assertTrue("role-review" in body,
+                                f"{name} must load the shared schema skill")
 
     def test_every_reviewer_owns_a_finding_id_prefix(self) -> None:
         self.assertEqual(set(REVIEWER_PREFIXES) | NON_REVIEWERS, set(EXPECTED_AGENTS),
@@ -160,8 +162,9 @@ class TestSharedReviewContract(unittest.TestCase):
     def test_finding_id_prefixes_are_documented_in_the_skill(self) -> None:
         for name, prefix in REVIEWER_PREFIXES.items():
             with self.subTest(agent=name):
-                self.assertIn(f"{prefix}-01", self.skill,
-                              f"{name}'s finding-ID prefix is missing from the shared contract")
+                self.assertTrue(f"{prefix}-01" in self.skill,
+                                f"{name}'s finding-ID prefix {prefix}-01 is missing from "
+                                "the shared contract's Finding IDs section")
 
     def test_prefixes_are_unique(self) -> None:
         prefixes = list(REVIEWER_PREFIXES.values())
@@ -170,7 +173,8 @@ class TestSharedReviewContract(unittest.TestCase):
     def test_skill_names_every_reviewing_role(self) -> None:
         for name in REVIEWER_PREFIXES:
             with self.subTest(agent=name):
-                self.assertIn(name, self.skill)
+                self.assertTrue(name in self.skill,
+                                f"{name} is missing from the shared contract's role list")
 
     def test_schema_sections_are_fixed(self) -> None:
         for section in ("## Summary", "## Findings", "## Recommendations", "## Open questions"):
@@ -230,14 +234,15 @@ class TestCommands(unittest.TestCase):
         text = (COMMANDS_DIR / "role-review.md").read_text(encoding="utf-8")
         for name in REVIEWER_PREFIXES:
             with self.subTest(agent=name):
-                self.assertIn(f"`{name}`", text,
-                              "a reviewing role that is never launched is dead weight")
+                self.assertTrue(f"`{name}`" in text,
+                                f"/role-review never launches {name} — a reviewing role "
+                                "that is never launched is dead weight")
 
     def test_developer_is_never_invoked_by_the_review_commands(self) -> None:
         for stem in ("role", "role-review"):
             with self.subTest(command=stem):
                 text = (COMMANDS_DIR / f"{stem}.md").read_text(encoding="utf-8")
-                self.assertIn("developer", text)
+                self.assertTrue("developer" in text)
                 self.assertRegex(text, r"(?i)(never invoke `developer`|not invocable)",
                                  "the human approval gate must be stated, not implied")
 

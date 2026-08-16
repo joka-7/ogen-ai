@@ -21,7 +21,7 @@ python .ai/skills/audit_repo/run_audit.py --project <workdir> --output <workdir>
 Once — not once per role. Every role reads its own domain slice from this file. If the script fails, continue anyway and tell the roles the file is absent; they degrade to unaided exploration.
 
 **4. Fan out the reviewers in parallel.**
-Launch `qa`, `architect`, `product`, `engineering-manager`, and `ciso` **in a single message** so they run concurrently in isolated contexts. Sequential launches waste the whole design. Give each the same brief: the `<workdir>` absolute path, the repo name, `<short-sha>`, and the path to `audit_data.json`.
+Launch `qa`, `architect`, `product`, `engineering-manager`, `sre`, and `ciso` **in a single message** so they run concurrently in isolated contexts. Sequential launches waste the whole design. Give each the same brief: the `<workdir>` absolute path, the repo name, `<short-sha>`, and the path to `audit_data.json`.
 
 If $ARGUMENTS named a subset of roles, launch only those.
 

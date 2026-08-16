@@ -1,9 +1,9 @@
 ---
-description: Run a single role agent (qa, architect, product, engineering-manager, ciso) against a target repo
+description: Run a single role agent (qa, architect, product, engineering-manager, sre, ciso) against a target repo
 ---
 Run one role review. $ARGUMENTS is `<role> [path-or-url]` — the role name first, then an optional target; default the target to the current directory.
 
-Valid roles: `qa`, `architect`, `product`, `engineering-manager`, `ciso`. If the named role isn't one of these, say so and list the valid ones rather than guessing at the closest match.
+Valid roles: `qa`, `architect`, `product`, `engineering-manager`, `sre`, `ciso`. If the named role isn't one of these, say so and list the valid ones rather than guessing at the closest match.
 
 `planner` is not directly invocable here — it aggregates reports that don't exist yet in a single-role run. `developer` is not invocable here either; it runs only on explicit approval of a backlog.
 
