@@ -239,7 +239,7 @@ class TestCommands(unittest.TestCase):
                                 "that is never launched is dead weight")
 
     def test_developer_is_never_invoked_by_the_review_commands(self) -> None:
-        for stem in ("role", "role-review"):
+        for stem in ("role", "role-review", "role-backlog"):
             with self.subTest(command=stem):
                 text = (COMMANDS_DIR / f"{stem}.md").read_text(encoding="utf-8")
                 self.assertTrue("developer" in text)
