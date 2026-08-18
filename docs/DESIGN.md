@@ -93,9 +93,10 @@ specifics into the submodule.
 - `rules/practices/{testing,git-commits,security}.md` — cross-cutting practices.
 - `agents/claude/*.md` — the eight role subagents (§10) plus `skills/role_review/SKILL.md`,
   the output contract they share.
-- `skills/{conventional-commit,scaffold-python-service,audit_repo,customize_config}/SKILL.md`
-  — example portable skills. `audit_repo` ships `run_audit.py`, a stdlib-only collector
-  script the skill runs before writing its report. `customize_config` ships
+- `skills/{conventional-commit,scaffold-python-service,audit_repo,customize_config,
+  release-checklist}/SKILL.md` — example portable skills. `audit_repo` ships
+  `run_audit.py`, a stdlib-only collector script the skill runs before writing its report.
+  `customize_config` ships
   `init_config.py`, which scaffolds a parent project's `ai-project-config.toml` — a
   project-local override file (custom coding rules + per-domain audit weights) that
   lives outside `.ai/` on purpose, since the submodule itself must never be hand-edited.
@@ -215,7 +216,12 @@ easy to miss by eye and easy to assert against.
    keeping the always-on cost visible (directly serves the lean-context principle).
 3. **More language fragments** (Go, Rust, Swift) under `rules/languages/`; add matching globs
    to `LANG_GLOBS` in `bin/ai-sync` for Cursor `.mdc` scoping.
-4. **More skills** (e.g. release-checklist, "port module to TS").
+4. **More skills** (e.g. "port module to TS"). `release-checklist` shipped: it walks a
+   target repo from its last tag to a version-bumped, tagged commit — deriving the bump
+   from Conventional Commits since that tag, running whatever gate commands its CI config
+   defines, and refusing to bump over a failing gate — then stops. It never pushes the tag
+   or publishes; that's a human decision left as printed commands, per `rules/base.md`'s
+   rule on large or irreversible actions.
 
 ---
 

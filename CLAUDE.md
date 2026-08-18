@@ -80,7 +80,7 @@ without `--force`. Both are covered by `tests/test_ai_sync.py` — keep them cov
    to keep the always-on cost visible.
 3. **More language fragments** as needed (Go, Rust, Swift) under `rules/languages/`; add a
    glob to `LANG_GLOBS` in `bin/ai-sync` for Cursor `.mdc` scoping.
-4. **More skills** (e.g. release-checklist, "port module to TS").
+4. **More skills** (e.g. "port module to TS"). `release-checklist` shipped.
 
 ## Editing conventions
 
