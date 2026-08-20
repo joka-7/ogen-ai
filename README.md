@@ -5,7 +5,11 @@ every repo as a git submodule. Write rules once; Claude Code, Cursor, Gemini, Co
 Codex and any other [AGENTS.md](https://agents.md)-aware tool read them.
 
 See [`docs/INVENTORY.md`](docs/INVENTORY.md) for a flat list of everything this repo ships —
-every rule fragment, skill, command, and agent — and which tools each one reaches.
+every rule fragment, skill, command, and agent — and which tools each one reaches. For design
+docs: [`docs/HLD.md`](docs/HLD.md) is the system-level view (components, data flow, the
+role-agent layer's trust boundary), [`docs/LLD.md`](docs/LLD.md) goes to per-file/function
+detail (exact tool-grant matrix, `bin/ai-sync`'s internals, file-format contracts), and
+[`docs/DESIGN.md`](docs/DESIGN.md) carries the full reasoning behind every decision in both.
 
 ## How it works
 

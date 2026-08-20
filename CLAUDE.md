@@ -12,6 +12,13 @@ Context for continuing this project in Claude Code. (This file is for working *o
 > **[`docs/INVENTORY.md`](docs/INVENTORY.md) is the flat list of what exists** — every
 > rule fragment, skill, command, and agent with a one-line purpose. Update it in the same
 > commit as adding or removing one of those; it's hand-maintained, nothing checks it's current.
+>
+> **[`docs/HLD.md`](docs/HLD.md)** is the system-level design view (components, data flow,
+> the role-agent trust boundary); **[`docs/LLD.md`](docs/LLD.md)** goes to per-file/function
+> detail (the exact tool-grant matrix, `bin/ai-sync`'s internals, file-format contracts).
+> Both are derived from `DESIGN.md` and the real code — update them alongside a change that
+> shifts a component boundary, a data-flow step, or the tool-grant matrix; a change that's
+> purely internal to one function usually doesn't need either touched.
 
 ## What this repo is
 

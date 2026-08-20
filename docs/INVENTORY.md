@@ -3,6 +3,8 @@
 One-page index of everything this repo ships — every rule fragment, skill, command, and
 agent, with a one-line purpose and how it reaches a consuming project. `README.md` explains
 *how* the wiring works; this file is a flat list of *what exists*, for scanning.
+`docs/HLD.md` and `docs/LLD.md` are the design-level views (system architecture and
+per-file/function detail, respectively); `docs/DESIGN.md` carries the full rationale.
 
 **This file is hand-maintained.** `tests/test_conventions.py` checks structural conventions
 (frontmatter shape, tool grants, finding-ID prefixes) but does not check that this table is
