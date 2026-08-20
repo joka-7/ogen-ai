@@ -114,7 +114,7 @@ specifics into the submodule.
 - `rules/languages/{python,typescript,javascript,kotlin,go,rust,swift}.md` — per-language
   conventions.
 - `rules/frameworks/react.md` — framework conventions.
-- `rules/practices/{testing,git-commits,security}.md` — cross-cutting practices.
+- `rules/practices/{testing,git-commits,security,architecture}.md` — cross-cutting practices.
 - `agents/claude/*.md` — the eleven role subagents (§10, §12) plus `skills/role_review/SKILL.md`,
   the output contract the seven reviewing roles share.
 - `skills/{conventional-commit,scaffold-python-service,audit_repo,customize_config,

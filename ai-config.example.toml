@@ -9,7 +9,7 @@ name = "my-project"
 # Names map to files under .ai/rules/{languages,frameworks,practices}/<name>.md
 languages  = ["python", "typescript"]
 frameworks = ["react"]
-practices  = ["testing", "git-commits", "security"]
+practices  = ["testing", "git-commits", "security", "architecture"]
 
 [tools]
 # Which assistants to wire up. "agents" (the root AGENTS.md) is always produced.

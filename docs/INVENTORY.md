@@ -30,6 +30,7 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 | `practices/testing.md` | `practices = ["testing"]` | Arrange-Act-Assert, deterministic, real objects over mocks |
 | `practices/git-commits.md` | `... "git-commits"` | Conventional Commits, one logical change per commit |
 | `practices/security.md` | `... "security"` | No hardcoded secrets, no logged PII, hostile-input validation |
+| `practices/architecture.md` | `... "architecture"` | HLD/LLD checklists, contract-vs-implementation, centralized error handling, structured logging |
 
 ## Skills (`skills/`)
 

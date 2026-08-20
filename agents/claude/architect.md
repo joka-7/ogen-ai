@@ -51,6 +51,27 @@ Everything below is what makes this role architectural rather than a general cod
   shape, framework coupling) versus cheap to change later. Weight severity accordingly.
 - **Missing seams**: places where a future requirement everyone expects has no place to go.
 
+## Design-record checklist (HLD/LLD)
+
+A structural review also checks whether the codebase *answers* the questions a design record
+would — not that one exists as a document, but that the system answers them consistently in
+how it's actually built. This is the review-side counterpart of `rules/practices/architecture.md`
+(compiled into a project's `AGENTS.md` when it opts into the `architecture` practice) — that
+fragment is what a project is asked to build to; this checklist is what you check it against,
+whether or not the project actually opted in:
+
+- **HLD-level**: what's the primary data store and why; how is config/secrets precedence
+  handled (secrets manager > env > local config > defaults, fail-fast on missing values at
+  startup); what's the integration-test strategy across component boundaries.
+- **LLD-level**: is there one consistent error contract (a real exception hierarchy or a typed
+  `Result`/discriminated union — not a mix of both, not neither); is there a deliberate logging
+  plan (structured, no PII, consistent levels); does DI wiring happen in one traceable place
+  rather than being scattered or implicit.
+
+An inconsistent or absent answer to one of these is a finding the same way coupling or a god
+object is — cite where you looked and what's inconsistent, not that the checklist item exists
+in the abstract.
+
 ## Steps
 
 1. Load the `role-review` skill and read `.ai-reviews/audit_data.json`'s
