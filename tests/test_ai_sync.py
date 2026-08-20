@@ -14,15 +14,30 @@ asserted in test_conventions.py instead.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+
+
+def _load_ai_sync():
+    """Import bin/ai-sync as a module, for unit-testing pure functions directly.
+
+    Safe: main() only runs under __main__. The extensionless filename defeats
+    spec_from_file_location's normal inference, so the loader is named explicitly.
+    """
+    loader = SourceFileLoader("ai_sync", str(REPO / "bin" / "ai-sync"))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
 
 
 class SyncHarness(unittest.TestCase):
@@ -59,9 +74,19 @@ class SyncHarness(unittest.TestCase):
         self._write(sm / "skills" / "demo-skill" / "SKILL.md",
                     "---\nname: demo-skill\ndescription: Demo.\n---\n\n# Demo\n")
         self._write(sm / "agents" / "claude" / "demo.md",
-                    "---\nname: demo\ndescription: Demo agent.\ntools: Read\nmodel: sonnet\n---\n")
+                    "---\nname: demo\ndescription: Demo agent.\ntools: Read, Grep, Glob, Skill"
+                    "\nmodel: sonnet\n---\n\n# Demo\n\nBody text.\n")
+        self._write(sm / "agents" / "claude" / "demo-writer.md",
+                    "---\nname: demo-writer\ndescription: Demo writer agent.\n"
+                    "tools: Read, Grep, Glob, Bash, Edit, Write, Skill\nmodel: opus\n---\n\n"
+                    "# Demo Writer\n\nBody text.\n")
+        self._write(sm / "agents" / "claude" / "demo-mcp.md",
+                    "---\nname: demo-mcp\ndescription: Demo MCP-integrated agent.\n"
+                    "tools: Read, Grep, Glob, mcp__atlassian__createJiraIssue, Skill\n"
+                    "model: sonnet\n---\n\n# Demo MCP\n\nBody text.\n")
         self._write(sm / "commands" / "claude" / "demo.md",
-                    "---\ndescription: Demo command\n---\nDo the thing. $ARGUMENTS\n")
+                    "---\ndescription: Demo command for $ARGUMENTS\n---\n"
+                    "Do the thing. $ARGUMENTS\n")
 
     @staticmethod
     def _write(path: Path, content: str) -> None:
@@ -94,6 +119,8 @@ class SyncHarness(unittest.TestCase):
         for key, value in (options or {}).items():
             if isinstance(value, bool):
                 lines.append(f"{key} = {'true' if value else 'false'}")
+            elif isinstance(value, int):
+                lines.append(f"{key} = {value}")
             else:
                 lines.append(f'{key} = "{value}"')
         self._write(self.project / "ai-config.toml", "\n".join(lines) + "\n")
@@ -161,6 +188,30 @@ class TestAgentsAssembly(SyncHarness):
         result = self.run_sync()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("ai-config.example.toml", result.stderr)
+
+
+class TestTokenBudget(SyncHarness):
+    def test_default_budget_is_not_exceeded_by_a_small_config(self) -> None:
+        self.write_config(languages=["python"])
+        result = self.run_sync()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("tokens (estimated, budget", result.stdout)
+        self.assertNotIn("over the", result.stderr)
+
+    def test_exceeding_the_configured_budget_warns_but_does_not_fail(self) -> None:
+        self.write_config(languages=["python"], options={"token_budget": 1})
+        result = self.run_sync()
+
+        self.assertEqual(result.returncode, 0, "the budget check must never fail the run")
+        self.assertIn("over the 1-token budget", result.stderr)
+        self.assertTrue(self.agents_md.exists(), "AGENTS.md must still be written")
+
+    def test_zero_budget_disables_the_check(self) -> None:
+        self.write_config(languages=["python"], options={"token_budget": 0})
+        result = self.run_sync()
+        self.assertNotIn("token", result.stdout)
+        self.assertNotIn("token", result.stderr)
 
 
 class TestSymlinkMode(SyncHarness):
@@ -336,11 +387,46 @@ class TestOtherTargets(SyncHarness):
         instructions = self.project / ".github" / "copilot-instructions.md"
         self.assertIn("PY-MARKER", instructions.read_text(encoding="utf-8"))
 
-    def test_cursor_alone_wires_nothing_because_it_reads_agents_md_natively(self) -> None:
+    def test_copilot_gets_skills_at_github_skills(self) -> None:
+        self.write_config(targets=["copilot"])
+        self.run_sync()
+        self.assertTrue((self.project / ".github" / "skills" / "demo-skill" / "SKILL.md")
+                        .exists())
+
+    def test_cursor_alone_reads_agents_md_natively_but_still_gets_skills(self) -> None:
         self.write_config(languages=["python"], targets=["cursor"])
         self.run_sync()
+
         self.assertTrue(self.agents_md.exists())
-        self.assertFalse((self.project / ".cursor").exists())
+        self.assertFalse((self.project / ".cursor" / "rules").exists(),
+                         "no cursor_mdc means no .mdc rules")
+        self.assertTrue((self.project / ".cursor" / "skills" / "demo-skill" / "SKILL.md")
+                        .exists(), "skills wiring isn't gated behind cursor_mdc")
+        self.assertFalse((self.project / ".cursor" / "commands").exists(),
+                         "cursor_commands is opt-in, unlike skills")
+
+    def test_cursor_commands_off_by_default_wires_nothing(self) -> None:
+        self.write_config(targets=["cursor"])
+        self.run_sync()
+        self.assertFalse((self.project / ".cursor" / "commands").exists())
+
+    def test_cursor_commands_opt_in_strips_frontmatter_and_adapts_arguments(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_commands": True})
+        self.run_sync()
+
+        out = self.project / ".cursor" / "commands" / "demo.md"
+        self.assertTrue(out.exists())
+        text = out.read_text(encoding="utf-8")
+        self.assertFalse(text.startswith("---"), "frontmatter must be stripped")
+        self.assertNotIn("$ARGUMENTS", text, "the Claude-only placeholder must not leak through")
+        self.assertIn("Do the thing.", text)
+        self.assertTrue(text.rstrip().endswith("applies here."),
+                        "a trailing $ARGUMENTS token becomes a closing sentence")
+
+    def test_cursor_commands_dry_run_writes_nothing(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_commands": True})
+        self.run_sync("--dry-run")
+        self.assertFalse((self.project / ".cursor" / "commands").exists())
 
     def test_cursor_mdc_emits_glob_scoped_rules_for_languages_and_frameworks(self) -> None:
         self.write_config(languages=["python"], frameworks=["react"], practices=["testing"],
@@ -353,6 +439,246 @@ class TestOtherTargets(SyncHarness):
         self.assertTrue((rules / "react.mdc").exists())
         self.assertFalse((rules / "testing.mdc").exists(),
                          "practices have no meaningful glob scope and must be excluded")
+
+
+class TestCodexTarget(SyncHarness):
+    """Codex reads AGENTS.md natively; skills wiring is unconditional on the target,
+    matching every other tool, since it's an unchanged symlink/copy — no opt-in flag."""
+
+    def test_codex_gets_skills_at_dot_codex_skills(self) -> None:
+        self.write_config(targets=["codex"])
+        self.run_sync()
+        self.assertTrue((self.project / ".codex" / "skills" / "demo-skill" / "SKILL.md")
+                        .exists())
+
+    def test_codex_alone_reads_agents_md_natively_no_other_wiring(self) -> None:
+        self.write_config(languages=["python"], targets=["codex"])
+        self.run_sync()
+        self.assertTrue(self.agents_md.exists())
+        self.assertFalse((self.project / ".codex" / "commands").exists(),
+                         "no command port exists for Codex")
+        self.assertFalse((self.project / ".codex" / "agents").exists(),
+                         "no agent port exists for Codex")
+
+
+class TestGeminiCommandsPort(SyncHarness):
+    def test_off_by_default(self) -> None:
+        self.write_config(targets=["gemini"])
+        self.run_sync()
+        self.assertFalse((self.project / ".gemini" / "commands").exists())
+
+    def test_opt_in_produces_valid_toml_with_args_substituted(self) -> None:
+        import tomllib as _toml
+        self.write_config(targets=["gemini"], options={"gemini_commands": True})
+        self.run_sync()
+
+        out = self.project / ".gemini" / "commands" / "demo.toml"
+        self.assertTrue(out.exists())
+        data = _toml.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(set(data.keys()), {"description", "prompt"})
+        self.assertNotIn("$ARGUMENTS", data["description"])
+        self.assertNotIn("$ARGUMENTS", data["prompt"])
+        self.assertIn("{{args}}", data["description"])
+        self.assertIn("{{args}}", data["prompt"])
+        self.assertIn("Do the thing.", data["prompt"])
+
+
+class TestWindsurfCommandsPort(SyncHarness):
+    def test_off_by_default(self) -> None:
+        self.write_config(targets=["windsurf"])
+        self.run_sync()
+        self.assertFalse((self.project / ".windsurf" / "commands").exists())
+        self.assertFalse((self.project / ".windsurf" / "workflows").exists())
+
+    def test_opt_in_keeps_description_frontmatter_and_adapts_arguments(self) -> None:
+        self.write_config(targets=["windsurf"], options={"windsurf_commands": True})
+        self.run_sync()
+
+        out = self.project / ".windsurf" / "workflows" / "demo.md"
+        text = out.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\ndescription:"),
+                        "Windsurf keeps description: frontmatter, unlike Cursor")
+        self.assertNotIn("$ARGUMENTS", text)
+        self.assertIn("Do the thing.", text)
+
+    def test_windsurf_alone_reads_agents_md_natively(self) -> None:
+        self.write_config(languages=["python"], targets=["windsurf"])
+        self.run_sync()
+        self.assertTrue(self.agents_md.exists())
+        self.assertFalse((self.project / ".windsurf").exists())
+
+
+class TestCopilotCommandsPort(SyncHarness):
+    def test_off_by_default(self) -> None:
+        self.write_config(targets=["copilot"])
+        self.run_sync()
+        self.assertFalse((self.project / ".github" / "prompts").exists())
+
+    def test_opt_in_produces_prompt_file_with_input_placeholder(self) -> None:
+        self.write_config(targets=["copilot"], options={"copilot_commands": True})
+        self.run_sync()
+
+        out = self.project / ".github" / "prompts" / "demo.prompt.md"
+        text = out.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("---\ndescription:"))
+        self.assertIn("agent: 'agent'", text)
+        self.assertNotIn("$ARGUMENTS", text)
+        self.assertIn("${input:arguments}", text)
+        self.assertIn("Do the thing.", text)
+
+
+class TestCursorAgentsPort(SyncHarness):
+    def test_off_by_default(self) -> None:
+        self.write_config(targets=["cursor"])
+        self.run_sync()
+        self.assertFalse((self.project / ".cursor" / "agents").exists())
+
+    def test_no_bash_role_gets_readonly_and_disclaimer(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_agents": True})
+        self.run_sync()
+
+        out = self.project / ".cursor" / "agents" / "demo.md"
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("readonly: true", text)
+        self.assertIn("model: inherit", text)
+        self.assertIn("A note on this port's guarantee", text,
+                      "a role with no Bash on Claude must carry the weaker-guarantee disclaimer")
+
+    def test_bash_and_write_capable_role_gets_no_disclaimer(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_agents": True})
+        self.run_sync()
+
+        out = self.project / ".cursor" / "agents" / "demo-writer.md"
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("readonly: false", text,
+                      "a role with Edit/Write on Claude must not claim readonly on Cursor")
+        self.assertNotIn("A note on this port's guarantee", text,
+                         "a role that already has Bash on Claude needs no weakened-guarantee note")
+
+    def test_mcp_tool_bearing_role_is_skipped_not_defanged(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_agents": True})
+        result = self.run_sync()
+
+        self.assertFalse((self.project / ".cursor" / "agents" / "demo-mcp.md").exists(),
+                         "an mcp__* tool has no confirmed Cursor equivalent — porting it "
+                         "unmapped would silently drop the tool, not skipping it would hide that")
+        self.assertIn("demo-mcp", result.stderr)
+        self.assertIn("skipped for Cursor", result.stderr)
+
+
+class TestGeminiAgentsPort(SyncHarness):
+    def test_off_by_default(self) -> None:
+        self.write_config(targets=["gemini"])
+        self.run_sync()
+        self.assertFalse((self.project / ".gemini" / "agents").exists())
+
+    def test_no_bash_role_gets_only_read_tools_no_disclaimer(self) -> None:
+        self.write_config(targets=["gemini"], options={"gemini_agents": True})
+        self.run_sync()
+
+        out = self.project / ".gemini" / "agents" / "demo.md"
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("- read_file", text)
+        self.assertIn("- grep_search", text)
+        self.assertIn("- glob", text)
+        self.assertNotIn("run_shell_command", text)
+        self.assertNotIn("A note on this port's guarantee", text,
+                         "Gemini's tools: grant is a confirmed real allowlist — no weaker claim needed")
+
+    def test_bash_capable_role_maps_every_confirmed_tool(self) -> None:
+        self.write_config(targets=["gemini"], options={"gemini_agents": True})
+        self.run_sync()
+
+        text = (self.project / ".gemini" / "agents" / "demo-writer.md").read_text(encoding="utf-8")
+        for tool in ("read_file", "grep_search", "glob", "run_shell_command", "replace", "write_file"):
+            with self.subTest(tool=tool):
+                self.assertIn(f"- {tool}", text)
+
+    def test_mcp_tool_bearing_role_is_skipped_not_defanged(self) -> None:
+        self.write_config(targets=["gemini"], options={"gemini_agents": True})
+        result = self.run_sync()
+
+        self.assertFalse((self.project / ".gemini" / "agents" / "demo-mcp.md").exists(),
+                         "Gemini addresses MCP tools as mcp_<server>_<tool>, not Claude's "
+                         "mcp__<server>__<tool> — passing the name through unmapped would "
+                         "silently drop the tool rather than port it")
+        self.assertIn("demo-mcp", result.stderr)
+        self.assertIn("skipped for Gemini", result.stderr)
+
+
+class TestCopilotAgentsPort(SyncHarness):
+    def test_off_by_default(self) -> None:
+        self.write_config(targets=["copilot"])
+        self.run_sync()
+        self.assertFalse((self.project / ".github" / "agents").exists())
+
+    def test_no_bash_role_gets_only_read_and_search(self) -> None:
+        self.write_config(targets=["copilot"], options={"copilot_agents": True})
+        self.run_sync()
+
+        out = self.project / ".github" / "agents" / "demo.agent.md"
+        text = out.read_text(encoding="utf-8")
+        self.assertIn("tools: ['read', 'search']", text)
+        self.assertNotIn("'execute'", text)
+        self.assertNotIn("'edit'", text)
+
+    def test_bash_and_write_capable_role_includes_execute_and_edit(self) -> None:
+        self.write_config(targets=["copilot"], options={"copilot_agents": True})
+        self.run_sync()
+
+        text = (self.project / ".github" / "agents" / "demo-writer.agent.md").read_text(
+            encoding="utf-8")
+        self.assertIn("'execute'", text)
+        self.assertIn("'edit'", text)
+
+    def test_mcp_tool_bearing_role_is_skipped_not_defanged(self) -> None:
+        self.write_config(targets=["copilot"], options={"copilot_agents": True})
+        result = self.run_sync()
+
+        self.assertFalse(
+            (self.project / ".github" / "agents" / "demo-mcp.agent.md").exists(),
+            "Copilot's MCP tool-addressing convention isn't confirmed at all — passing "
+            "the mcp__<server>__<tool> name through unmapped would silently drop it")
+        self.assertIn("demo-mcp", result.stderr)
+        self.assertIn("skipped for Copilot", result.stderr)
+
+
+class TestAdaptArgumentsForCursor(unittest.TestCase):
+    """Unit tests on the pure transform, since the end-to-end fixture only exercises
+    the trailing-token case. Loads bin/ai-sync directly rather than via subprocess."""
+
+    def setUp(self) -> None:
+        self.adapt = _load_ai_sync().adapt_arguments_for_cursor
+
+    def test_trailing_token_becomes_a_closing_sentence(self) -> None:
+        result = self.adapt("Do the thing. $ARGUMENTS")
+        self.assertEqual(result,
+                         "Do the thing. Any extra context the user typed when "
+                         "invoking this command applies here.")
+
+    def test_inline_mid_sentence_stays_lowercase(self) -> None:
+        result = self.adapt("The target given in $ARGUMENTS is used.")
+        self.assertEqual(result,
+                         "The target given in whatever the user typed alongside "
+                         "this command is used.")
+
+    def test_inline_at_start_of_body_is_capitalized(self) -> None:
+        result = self.adapt("$ARGUMENTS is `<role> [path]`.")
+        self.assertTrue(result.startswith("Whatever the user typed"))
+
+    def test_inline_after_sentence_boundary_is_capitalized(self) -> None:
+        result = self.adapt("Resolve the target first. $ARGUMENTS is the input.")
+        self.assertIn(". Whatever the user typed", result)
+
+    def test_inline_after_newline_is_capitalized(self) -> None:
+        result = self.adapt("First line.\n$ARGUMENTS starts the second line.")
+        self.assertIn("\nWhatever the user typed", result)
+
+    def test_no_placeholder_leaks_through_in_any_case(self) -> None:
+        for body in ("$ARGUMENTS", "trailing. $ARGUMENTS",
+                     "$ARGUMENTS mid. and $ARGUMENTS again."):
+            with self.subTest(body=body):
+                self.assertNotIn("$ARGUMENTS", self.adapt(body))
 
 
 if __name__ == "__main__":

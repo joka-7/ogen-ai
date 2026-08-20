@@ -5,9 +5,11 @@
     "",
     "Why: a subagent's `tools:` frontmatter is all-or-nothing per tool. It can grant or",
     "withhold Bash, but it cannot express 'Bash, but only read commands'. The reviewing",
-    "role agents (qa, architect, product, engineering-manager, sre) need Bash to run a",
-    "test suite and read git metadata, so their read-only guarantee is otherwise enforced",
-    "only by instructions in the agent body. These deny rules make it real.",
+    "role agents (qa, architect, product, engineering-manager, sre, senior-dev) need Bash",
+    "to run a test suite and read git metadata, so their read-only guarantee is otherwise",
+    "enforced only by instructions in the agent body. docs-sync needs the same fence for",
+    "the same reason, even though it can edit — its Bash is for reading git history to see",
+    "what changed, not for anything that mutates. These deny rules make all of that real.",
     "",
     "The build/plan/deploy entries matter most for `sre`, which reads Dockerfiles, Terraform",
     "and Kubernetes manifests: `terraform plan` downloads and executes provider plugins and",
@@ -19,9 +21,10 @@
     "your workflow needs any of them, drop that line rather than the whole block — and if",
     "you routinely commit from inside Claude Code, this block is not for you.",
     "",
-    "ciso and planner need no rules here: they are granted no Bash at all, which is a",
-    "harder guarantee than any deny list. developer is intentionally unconstrained; it is",
-    "the one role meant to change the repo, and it only runs on explicit human approval."
+    "ciso, planner, and tracker need no rules here: they are granted no Bash at all, which",
+    "is a harder guarantee than any deny list. developer and docs-sync are the two roles",
+    "meant to change the repo (code and documentation respectively) and both run only on",
+    "deliberate invocation — developer additionally requires named, human-approved items."
   ],
   "permissions": {
     "deny": [

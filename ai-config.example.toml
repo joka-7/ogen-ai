@@ -13,11 +13,21 @@ practices  = ["testing", "git-commits", "security"]
 
 [tools]
 # Which assistants to wire up. "agents" (the root AGENTS.md) is always produced.
-#   claude  -> CLAUDE.md symlink + .claude/skills + .claude/commands
-#              (+ .claude/agents when claude_agents = true below)
-#   gemini  -> GEMINI.md symlink + .agents/skills
-#   cursor  -> native AGENTS.md (set cursor_mdc below for glob-scoped .mdc rules)
-#   copilot -> .github/copilot-instructions.md symlink
+#   claude   -> CLAUDE.md symlink + .claude/skills + .claude/commands
+#               (+ .claude/agents when claude_agents = true below)
+#   gemini   -> GEMINI.md symlink + .agents/skills
+#               (+ .gemini/commands, .gemini/agents when the options below are true)
+#   cursor   -> native AGENTS.md + .cursor/skills (set cursor_mdc below for glob-scoped
+#               .mdc rules too; cursor_commands/cursor_agents for the rest)
+#   copilot  -> .github/copilot-instructions.md symlink + .github/skills
+#               (+ .github/prompts, .github/agents when the options below are true)
+#   windsurf -> native AGENTS.md (set windsurf_commands below for .windsurf/workflows)
+#   codex    -> native AGENTS.md + .codex/skills. Codex only reads skills from
+#               $CODEX_HOME/skills (default ~/.codex/skills, your home directory, not
+#               the project) — set CODEX_HOME=<project-root>/.codex (shell profile,
+#               .envrc, or CI env config) for Codex to pick up what's wired here. No
+#               command or agent port: Codex's commands (custom prompts) are reportedly
+#               deprecated in favor of skills, and no custom-agent convention was found.
 targets = ["claude", "cursor", "gemini", "copilot"]
 
 [options]
@@ -38,7 +48,38 @@ local_tail = "ai-config.local.md"
 cursor_mdc = false
 
 # Install the role subagents (qa, architect, product, engineering-manager, sre,
-# ciso, planner, developer) into .claude/agents, enabling /role-review and /role.
+# senior-dev, ciso, planner, developer, tracker, docs-sync) into .claude/agents,
+# enabling /role-review, /role, /sync-tracker, and /sync-docs.
 # Off by default: they're opinionated, and a project that doesn't run multi-role
-# reviews shouldn't carry seven agent descriptions in its context.
+# reviews shouldn't carry eleven agent descriptions in its context.
 claude_agents = false
+
+# --- Command and agent ports to other platforms ---
+# Every option below adapts commands/claude/*.md and agents/claude/*.md into another
+# tool's own convention. All are opt-in text/format transforms, not symlinks, and all
+# default to false. Confidence differs per option — read bin/ai-sync's docstring for
+# the one you enable before relying on it in a real project; the short version:
+#   gemini_commands/gemini_agents   confirmed against Gemini's own docs, fetched directly.
+#   cursor_commands/cursor_agents   confirmed against real example files in a public repo.
+#   copilot_commands/copilot_agents confirmed against real examples / a community reference
+#                                   doc — not Copilot's own primary docs (network-blocked
+#                                   here).
+#   windsurf_commands               confirmed against one real example file.
+# For agents specifically: ciso/planner hold no Bash on Claude, a structural guarantee.
+# Gemini and Copilot's own tools: fields can express that (confirmed for Gemini, high
+# confidence for Copilot); Cursor's format cannot (confirmed — see cursor_agents), so a
+# Cursor-ported ciso/planner carries an explicit weaker-guarantee disclaimer instead of
+# silently repeating a claim the format can't back.
+cursor_commands = false
+cursor_agents = false
+gemini_commands = false
+gemini_agents = false
+copilot_commands = false
+copilot_agents = false
+windsurf_commands = false
+
+# Warn (not fail) when the assembled AGENTS.md exceeds this many estimated tokens.
+# AGENTS.md loads on every turn, so its size is a cost paid whether or not the turn
+# needs it — this just keeps that cost visible. The estimate is ~chars/4, a rough
+# heuristic, not an exact count. Set to 0 to disable.
+token_budget = 6000

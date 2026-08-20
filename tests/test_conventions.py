@@ -13,11 +13,26 @@ editing this table — that is the point, not an inconvenience.
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import unittest
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+
+
+def _load_ai_sync():
+    """Import bin/ai-sync as a module. Safe: main() only runs under __main__.
+
+    The extensionless filename defeats spec_from_file_location's normal inference,
+    so the loader is named explicitly.
+    """
+    loader = SourceFileLoader("ai_sync", str(REPO / "bin" / "ai-sync"))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
 AGENTS_DIR = REPO / "agents" / "claude"
 COMMANDS_DIR = REPO / "commands" / "claude"
 SKILLS_DIR = REPO / "skills"
@@ -29,9 +44,18 @@ EXPECTED_AGENTS: dict[str, tuple[list[str], str]] = {
     "product": (["Read", "Grep", "Glob", "Bash", "Skill"], "sonnet"),
     "engineering-manager": (["Read", "Grep", "Glob", "Bash", "Skill"], "sonnet"),
     "sre": (["Read", "Grep", "Glob", "Bash", "Skill"], "sonnet"),
+    "senior-dev": (["Read", "Grep", "Glob", "Bash", "Skill"], "opus"),
     "ciso": (["Read", "Grep", "Glob", "Skill"], "opus"),
     "planner": (["Read", "Grep", "Glob", "Skill"], "opus"),
     "developer": (["Read", "Grep", "Glob", "Bash", "Edit", "Write", "Skill"], "opus"),
+    "tracker": (["Read", "Grep", "Glob", "mcp__atlassian__searchJiraIssuesUsingJql",
+                "mcp__atlassian__getJiraIssue", "mcp__atlassian__createJiraIssue",
+                "mcp__atlassian__editJiraIssue", "mcp__atlassian__transitionJiraIssue",
+                "mcp__atlassian__addCommentToJiraIssue", "Skill"], "sonnet"),
+    "docs-sync": (["Read", "Grep", "Glob", "Bash", "Edit", "Write",
+                  "mcp__atlassian__getConfluencePage", "mcp__atlassian__createConfluencePage",
+                  "mcp__atlassian__updateConfluencePage", "mcp__atlassian__searchConfluenceUsingCql",
+                  "Skill"], "sonnet"),
 }
 
 # Reviewing roles fan out in parallel and share the role-review output contract.
@@ -42,11 +66,13 @@ REVIEWER_PREFIXES: dict[str, str] = {
     "product": "PRD",
     "engineering-manager": "EM",
     "sre": "SRE",
+    "senior-dev": "SDR",
     "ciso": "SEC",
 }
 
-# Roles that do not review source: planner reads reports, developer implements.
-NON_REVIEWERS = {"planner", "developer"}
+# Roles that do not review source and don't share the role-review output schema:
+# planner reads reports, developer implements, tracker syncs Jira, docs-sync syncs docs.
+NON_REVIEWERS = {"planner", "developer", "tracker", "docs-sync"}
 
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 
@@ -122,12 +148,16 @@ class TestToolGrants(unittest.TestCase):
             with self.subTest(agent=name):
                 self.assertEqual(self.tools_of(name), expected)
 
-    def test_only_developer_can_modify_a_repo(self) -> None:
+    def test_only_developer_and_docs_sync_can_modify_a_repo(self) -> None:
+        # docs-sync is the second write-capable role, scoped to documentation-shaped
+        # content by body rule rather than tool grant (Claude Code can't glob-scope
+        # Edit/Write) — see docs-sync.md's own note on that limit.
+        writer_roles = {"developer", "docs-sync"}
         for name in EXPECTED_AGENTS:
             with self.subTest(agent=name):
                 writers = {"Edit", "Write", "NotebookEdit"} & set(self.tools_of(name))
-                if name == "developer":
-                    self.assertTrue(writers, "developer must be able to edit")
+                if name in writer_roles:
+                    self.assertTrue(writers, f"{name} must be able to edit")
                 else:
                     self.assertEqual(writers, set(),
                                      f"{name} must not be able to modify the target repo")
@@ -180,6 +210,27 @@ class TestSharedReviewContract(unittest.TestCase):
         for section in ("## Summary", "## Findings", "## Recommendations", "## Open questions"):
             with self.subTest(section=section):
                 self.assertIn(section, self.skill)
+
+
+class TestLangGlobs(unittest.TestCase):
+    """README's 'New language rule' says a glob-scoped fragment needs a LANG_GLOBS entry."""
+
+    def setUp(self) -> None:
+        self.lang_globs = _load_ai_sync().LANG_GLOBS
+
+    def test_every_lang_glob_key_has_a_real_fragment(self) -> None:
+        for name in self.lang_globs:
+            with self.subTest(name=name):
+                exists = ((REPO / "rules" / "languages" / f"{name}.md").exists()
+                         or (REPO / "rules" / "frameworks" / f"{name}.md").exists())
+                self.assertTrue(exists, f"LANG_GLOBS has '{name}' but no matching fragment")
+
+    def test_every_language_fragment_has_a_glob(self) -> None:
+        for path in sorted((REPO / "rules" / "languages").glob("*.md")):
+            with self.subTest(language=path.stem):
+                self.assertIn(path.stem, self.lang_globs,
+                              f"{path.stem}.md has no LANG_GLOBS entry, so cursor_mdc "
+                              "silently emits no rule for it")
 
 
 class TestSkills(unittest.TestCase):

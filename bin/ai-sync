@@ -10,12 +10,31 @@ Run from the project root (where ai-config.toml lives):
 Requires Python 3.11+ (uses tomllib). One real file is generated — AGENTS.md.
 Everything else is a symlink to it or to the submodule, so there is a single
 source of truth and nothing to keep in sync by hand.
+
+Note on .cursor/skills/ and .github/skills/ (added Aug 2026): the exact discovery
+paths these tools use for the Agent Skills / SKILL.md convention were sourced from
+web search, not a fetched primary doc — this environment's network policy blocked
+direct access to cursor.com/docs and docs.github.com at the time. Spot-check against
+a real Cursor/Copilot install before depending on this wiring in a new project.
+
+Note on cursor_commands (added Aug 2026): unlike skills, this is a best-effort text
+transform, not a verified-lossless port — see emit_cursor_commands' docstring.
+
+Note on gemini_commands/gemini_agents, windsurf_commands, copilot_commands/copilot_agents,
+and cursor_agents (added Aug 2026): each is a text/format transform of this repo's own
+Claude-shaped commands and agents into another tool's convention. Confidence varies per
+target and is stated in each emit_* function's docstring — some are confirmed against a
+primary doc fetched directly (Gemini), some against real example files in public repos
+(Cursor, Copilot), none against a live install of the target tool. All are opt-in and off
+by default. Windsurf agent porting and Windsurf skill wiring were investigated and
+deliberately NOT built — see docs/DESIGN.md for why.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -34,6 +53,9 @@ LANG_GLOBS: dict[str, str] = {
     "typescript": "**/*.ts,**/*.tsx",
     "javascript": "**/*.js,**/*.jsx,**/*.mjs",
     "kotlin": "**/*.kt,**/*.kts",
+    "go": "**/*.go",
+    "rust": "**/*.rs",
+    "swift": "**/*.swift",
     "react": "**/*.tsx,**/*.jsx",
 }
 
@@ -42,6 +64,16 @@ BANNER = (
     "     Edit fragments in .ai/rules/ or your project's {local} instead,\n"
     "     then re-run:  python .ai/bin/ai-sync -->\n"
 )
+
+# AGENTS.md loads on every turn, so its size is a cost paid whether or not the turn
+# needs it. ~4 characters per token is the standard rough estimate for English prose
+# and code — good enough to flag "this got big", not precise enough to budget exactly.
+CHARS_PER_TOKEN_ESTIMATE = 4
+DEFAULT_TOKEN_BUDGET = 6000
+
+
+def estimate_tokens(text: str) -> int:
+    return len(text) // CHARS_PER_TOKEN_ESTIMATE
 
 
 class Reporter:
@@ -100,6 +132,26 @@ def build_agents_md(submodule: Path, project_root: Path, m: dict, rep: Reporter)
     header = "# AGENTS.md\n\n" + BANNER.format(local=local_name) + "\n"
     body = "\n".join(parts).rstrip() + "\n"
     return header + body
+
+
+def check_token_budget(agents_content: str, m: dict, rep: Reporter) -> None:
+    """Warn when the assembled AGENTS.md crosses [options].token_budget.
+
+    A rough estimate is deliberate: this is a visibility check, not a hard gate, so
+    it never fails the run — it only warns. 0 disables it.
+    """
+    budget = m.get("options", {}).get("token_budget", DEFAULT_TOKEN_BUDGET)
+    if not isinstance(budget, int) or budget <= 0:
+        return
+    estimate = estimate_tokens(agents_content)
+    if estimate > budget:
+        rep.warn(
+            f"AGENTS.md is ~{estimate} tokens (estimated), over the {budget}-token budget. "
+            "It loads on every turn — trim [stack] to only what this project uses, or move "
+            "occasional procedures out of rules/ and into a skill instead."
+        )
+    else:
+        print(f"  AGENTS.md: ~{estimate} tokens (estimated, budget {budget})")
 
 
 def rel_symlink(target: Path, link: Path, rep: Reporter, force: bool) -> None:
@@ -211,6 +263,351 @@ def emit_cursor_mdc(submodule: Path, project_root: Path, m: dict, rep: Reporter,
             write_file(rules_dir / f"{name}.mdc", mdc, rep)
 
 
+def emit_cursor_commands(submodule: Path, project_root: Path, rep: Reporter) -> None:
+    """Adapt commands/claude/*.md into Cursor's .cursor/commands/ convention.
+
+    Best-effort, not a verified-lossless port, for two reasons stated plainly:
+
+    1. This repo's commands use `description:` frontmatter that Cursor's format has
+       no place for — confirmed by reading a real .cursor/commands/*.md example,
+       which had no frontmatter at all, just a bare `# Title` body. Stripped here.
+    2. This repo's commands use `$ARGUMENTS`, a Claude Code convention with no
+       confirmed Cursor equivalent — the one real example found took no arguments.
+       Cursor reportedly inserts a command's body into the chat input verbatim,
+       letting the user type additional text in the same message, so every
+       `$ARGUMENTS` is replaced with a fixed phrase pointing at that same-message
+       text. This reads naturally inline but can be grammatically blunt as a
+       trailing sentence — a known rough edge, left visible rather than polished
+       away, since polishing it would hide that this is a guess, not a spec.
+
+    Gated behind [options].cursor_commands, off by default, unlike skills wiring:
+    a transform that changes content deserves an explicit opt-in the way a symlink
+    of unchanged content does not.
+    """
+    src_dir = submodule / "commands" / "claude"
+    if not src_dir.exists():
+        return
+    dest_dir = project_root / ".cursor" / "commands"
+    for src in sorted(src_dir.glob("*.md")):
+        _, body = parse_command_file(src)
+        adapted = adapt_arguments_for_cursor(body.strip())
+        write_file(dest_dir / src.name, adapted + "\n", rep)
+
+
+ARGUMENTS_TRAILING_NOTE = (
+    "Any extra context the user typed when invoking this command applies here."
+)
+ARGUMENTS_INLINE_PHRASE = "whatever the user typed alongside this command"
+
+
+def adapt_arguments_for_cursor(body: str) -> str:
+    """Replace $ARGUMENTS, distinguishing the trailing-token idiom from inline use
+    so the trailing case reads as a sentence rather than a dangling fragment, and
+    capitalizing the inline phrase when it opens a sentence (start of file, or
+    right after ". " or a newline) rather than leaving a lowercase sentence start."""
+    if body.endswith("$ARGUMENTS"):
+        body = body[: -len("$ARGUMENTS")].rstrip() + " " + ARGUMENTS_TRAILING_NOTE
+    body = body.replace("$ARGUMENTS", ARGUMENTS_INLINE_PHRASE)
+    capitalized = ARGUMENTS_INLINE_PHRASE[0].upper() + ARGUMENTS_INLINE_PHRASE[1:]
+    return re.sub(rf"(\A|(?<=\. )|(?<=\n)){re.escape(ARGUMENTS_INLINE_PHRASE)}",
+                 capitalized, body)
+
+
+FRONTMATTER_FIELDS = re.compile(r"\A---\n(.*?)\n---\n(.*)\Z", re.DOTALL)
+
+
+def _parse_fields(text: str) -> tuple[dict[str, str], str]:
+    """Split a file into its `key: value` frontmatter fields and body.
+
+    Deliberately not a YAML parser — every frontmatter block this repo writes is
+    flat single-line `key: value` pairs, and pulling in a dependency to parse a
+    format this constrained would violate the stdlib-only rule for one edge case
+    none of these files use (multi-line or nested values).
+    """
+    match = FRONTMATTER_FIELDS.match(text)
+    if not match:
+        return {}, text
+    fields: dict[str, str] = {}
+    for line in match.group(1).splitlines():
+        key, _, value = line.partition(":")
+        if key.strip():
+            fields[key.strip()] = value.strip()
+    return fields, match.group(2)
+
+
+def parse_command_file(path: Path) -> tuple[str, str]:
+    """Return (description, body) for a commands/claude/*.md file."""
+    fields, body = _parse_fields(path.read_text(encoding="utf-8"))
+    return fields.get("description", ""), body
+
+
+def parse_agent_file(path: Path) -> tuple[dict[str, str], str]:
+    """Return (frontmatter fields, body) for an agents/claude/*.md file."""
+    return _parse_fields(path.read_text(encoding="utf-8"))
+
+
+def _yaml_single_quote(s: str) -> str:
+    """Escape a string for a YAML single-quoted scalar (double any embedded quote)."""
+    return "'" + s.replace("'", "''") + "'"
+
+
+# Confirmed via Gemini CLI's own docs (docs/tools/file-system.md, docs/tools/shell.md,
+# fetched directly from google-gemini/gemini-cli). "Skill" has no confirmed equivalent —
+# omitted from the map rather than guessed, so it's silently dropped from a mapped list.
+GEMINI_TOOL_MAP = {
+    "Read": "read_file",
+    "Grep": "grep_search",
+    "Glob": "glob",
+    "Bash": "run_shell_command",
+    "Edit": "replace",
+    "Write": "write_file",
+}
+
+# Observed from real .agent.md examples in github/awesome-copilot (the flat-vocabulary
+# variant: 'read', 'search', 'edit', 'execute', ...) — not confirmed against Copilot's own
+# primary docs, which were network-blocked in this sandbox (learn.microsoft.com,
+# code.visualstudio.com). Coarser than Claude's grant: Read/Grep/Glob all collapse into
+# 'read'/'search', since the real examples didn't distinguish them further.
+COPILOT_TOOL_MAP = {
+    "Read": "read",
+    "Grep": "search",
+    "Glob": "search",
+    "Bash": "execute",
+    "Edit": "edit",
+    "Write": "edit",
+}
+
+CURSOR_NO_BASH_DISCLAIMER = (
+    "**A note on this port's guarantee.** On Claude Code, this role holds no `Bash` tool "
+    "at all — a structural claim that it cannot execute code. Cursor's agent format has no "
+    "equivalent: its `readonly` field only restricts file writes, not shell execution "
+    "(confirmed by reading real `.cursor/agents/*.md` examples — one has to state \"no "
+    "command execution\" as prose in its body, because `readonly` does not cover it). This "
+    "port's \"cannot execute code\" claim is therefore only as strong as the project's own "
+    "`.cursor/cli.json` shell deny list, if one exists — a project-wide setting, not a "
+    "per-agent boundary, with documented bypass techniques. Do not assume a report from "
+    "this role means no command ran; verify independently if that matters."
+)
+
+
+def emit_gemini_commands(submodule: Path, project_root: Path, rep: Reporter) -> None:
+    """Adapt commands/claude/*.md into Gemini CLI's .gemini/commands/*.toml convention.
+
+    Confirmed against Gemini's own docs (docs/cli/custom-commands.md, fetched directly
+    from google-gemini/gemini-cli): TOML with `description` and `prompt` fields, and a
+    real `{{args}}` substitution placeholder — a documented argument mechanism, not a
+    guessed fallback like Cursor's. `$ARGUMENTS` maps directly to `{{args}}`.
+
+    Gated behind [options].gemini_commands, off by default: still a format change even
+    though the argument mapping is solid, so it gets the same explicit opt-in as every
+    other command port.
+    """
+    src_dir = submodule / "commands" / "claude"
+    if not src_dir.exists():
+        return
+    dest_dir = project_root / ".gemini" / "commands"
+    for src in sorted(src_dir.glob("*.md")):
+        description, body = parse_command_file(src)
+        description = description.replace("$ARGUMENTS", "{{args}}")
+        prompt = body.strip().replace("$ARGUMENTS", "{{args}}")
+        toml = (f"description = {_toml_string(description)}\n"
+                f'prompt = """\n{prompt}\n"""\n')
+        write_file(dest_dir / f"{src.stem}.toml", toml, rep)
+
+
+def _toml_string(s: str) -> str:
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def emit_windsurf_workflows(submodule: Path, project_root: Path, rep: Reporter) -> None:
+    """Adapt commands/claude/*.md into Windsurf's .windsurf/workflows/ convention.
+
+    Confirmed against a real .windsurf/workflows/*.md example (gotalab/ide-rules,
+    python-project-setup.md, fetched directly): a `description:` frontmatter field —
+    this repo's own shape, kept as-is rather than stripped — followed by the body. No
+    argument-substitution syntax was found in that example, so `$ARGUMENTS` is adapted
+    the same way as for Cursor (adapt_arguments_for_cursor) rather than invented.
+
+    Gated behind [options].windsurf_commands, off by default.
+    """
+    src_dir = submodule / "commands" / "claude"
+    if not src_dir.exists():
+        return
+    dest_dir = project_root / ".windsurf" / "workflows"
+    for src in sorted(src_dir.glob("*.md")):
+        description, body = parse_command_file(src)
+        description = adapt_arguments_for_cursor(description)
+        adapted = adapt_arguments_for_cursor(body.strip())
+        content = f"---\ndescription: {description}\n---\n\n{adapted}\n"
+        write_file(dest_dir / src.name, content, rep)
+
+
+def emit_copilot_prompts(submodule: Path, project_root: Path, rep: Reporter) -> None:
+    """Adapt commands/claude/*.md into Copilot's .github/prompts/*.prompt.md convention.
+
+    Confirmed against a real community reference doc (github/awesome-copilot's
+    instructions/prompt.instructions.md, fetched directly): frontmatter fields
+    description/name/agent/model/tools/argument-hint, and a real argument mechanism —
+    `${input:variableName[:placeholder]}`. `$ARGUMENTS` maps to `${input:arguments}`, a
+    genuine substitution point Copilot prompts the user for, not a fallback phrase.
+
+    Gated behind [options].copilot_commands, off by default.
+    """
+    src_dir = submodule / "commands" / "claude"
+    if not src_dir.exists():
+        return
+    dest_dir = project_root / ".github" / "prompts"
+    for src in sorted(src_dir.glob("*.md")):
+        description, body = parse_command_file(src)
+        description = description.replace("$ARGUMENTS", "${input:arguments}")
+        adapted = body.strip().replace("$ARGUMENTS", "${input:arguments}")
+        content = (f"---\ndescription: {_yaml_single_quote(description)}\n"
+                  f"agent: 'agent'\n---\n\n{adapted}\n")
+        write_file(dest_dir / f"{src.stem}.prompt.md", content, rep)
+
+
+def _has_mcp_tools(tools: list[str]) -> bool:
+    return any(t.startswith("mcp__") for t in tools)
+
+
+MCP_PORT_SKIP_REASON = (
+    "has mcp__* tools (an MCP integration, e.g. Jira/Confluence) — skipped for {target}. "
+    "Claude Code's mcp__<server>__<tool> naming is its own convention; every other "
+    "platform addresses MCP tools differently (Gemini uses mcp_<server>_<tool> with "
+    "single underscores per its own docs, and Cursor/Copilot's conventions for this "
+    "aren't confirmed at all), so passing these tool names through unmapped would "
+    "produce a broken or silently defanged agent, not a working port. Not attempted."
+)
+
+
+def emit_cursor_agents(submodule: Path, project_root: Path, rep: Reporter) -> None:
+    """Adapt agents/claude/*.md into Cursor's .cursor/agents/ convention.
+
+    Confirmed against two real .cursor/agents/*.md examples (wchen02/cursor-agent-learning,
+    security-auditor.md and verifier.md, fetched directly): frontmatter fields
+    name/description/model/readonly/is_background. `readonly` is a coarse write-toggle —
+    set true whenever the source grant has no Edit/Write, false otherwise — not a tool
+    allowlist; see CURSOR_NO_BASH_DISCLAIMER for what that means for ciso/planner.
+
+    `model` is set to `inherit` (use the session's default), matching the real
+    security-auditor.md example, rather than guessing an Anthropic-tier-to-Cursor-model
+    mapping with no confirmed basis.
+
+    Gated behind [options].cursor_agents, off by default.
+
+    Agents whose Claude tool grant includes an mcp__* tool are skipped entirely — see
+    MCP_PORT_SKIP_REASON.
+    """
+    src_dir = submodule / "agents" / "claude"
+    if not src_dir.exists():
+        return
+    dest_dir = project_root / ".cursor" / "agents"
+    for src in sorted(src_dir.glob("*.md")):
+        fields, body = parse_agent_file(src)
+        tools = [t.strip() for t in fields.get("tools", "").split(",")]
+        if _has_mcp_tools(tools):
+            rep.warn(f"{src.stem} {MCP_PORT_SKIP_REASON.format(target='Cursor')}")
+            continue
+        readonly = "Edit" not in tools and "Write" not in tools
+        frontmatter = (
+            f"---\nname: {fields.get('name', src.stem)}\n"
+            f"description: {fields.get('description', '')}\n"
+            f"model: inherit\nreadonly: {'true' if readonly else 'false'}\n"
+            f"is_background: false\n---\n"
+        )
+        body_text = body.strip()
+        if "Bash" not in tools:
+            body_text = CURSOR_NO_BASH_DISCLAIMER + "\n\n" + body_text
+        write_file(dest_dir / src.name, frontmatter + "\n" + body_text + "\n", rep)
+
+
+def emit_gemini_agents(submodule: Path, project_root: Path, rep: Reporter) -> None:
+    """Adapt agents/claude/*.md into Gemini CLI's .gemini/agents/ convention.
+
+    Confirmed against Gemini's own docs (docs/core/subagents.md, fetched directly):
+    frontmatter fields name/description/kind/tools, and — critically — an explicit
+    structural guarantee stated in the doc itself: "the subagent only has access to the
+    tools you explicitly grant it." Tool names are mapped via GEMINI_TOOL_MAP, itself
+    read from Gemini's own tool reference docs (docs/tools/file-system.md, shell.md),
+    not guessed.
+
+    Because that guarantee is documented, not inferred, ciso and planner keep their full
+    "cannot execute code" claim here — no disclaimer needed, unlike the Cursor port.
+    `Skill` has no confirmed Gemini tool equivalent and is silently omitted from the
+    mapped list (GEMINI_TOOL_MAP has no entry for it); the body's instruction to load the
+    role-review skill is left as-is, relying on Gemini's project-level skill discovery
+    (`.agents/skills/`, wired when `gemini` is a target) rather than a subagent tool grant.
+
+    `model` is omitted, which the docs say defaults to `inherit` — same reasoning as the
+    Cursor port: no confirmed opus/sonnet-tier-to-Gemini-model mapping exists.
+
+    Gated behind [options].gemini_agents, off by default.
+
+    Agents whose Claude tool grant includes an mcp__* tool are skipped entirely — see
+    MCP_PORT_SKIP_REASON.
+    """
+    src_dir = submodule / "agents" / "claude"
+    if not src_dir.exists():
+        return
+    dest_dir = project_root / ".gemini" / "agents"
+    for src in sorted(src_dir.glob("*.md")):
+        fields, body = parse_agent_file(src)
+        tools = [t.strip() for t in fields.get("tools", "").split(",")]
+        if _has_mcp_tools(tools):
+            rep.warn(f"{src.stem} {MCP_PORT_SKIP_REASON.format(target='Gemini')}")
+            continue
+        mapped = [GEMINI_TOOL_MAP[t] for t in tools if t in GEMINI_TOOL_MAP]
+        tools_yaml = "\n".join(f"  - {t}" for t in mapped) or "  []"
+        frontmatter = (
+            f"---\nname: {fields.get('name', src.stem)}\n"
+            f"description: {fields.get('description', '')}\n"
+            f"kind: local\ntools:\n{tools_yaml}\n---\n"
+        )
+        write_file(dest_dir / src.name, frontmatter + "\n" + body.strip() + "\n", rep)
+
+
+def emit_copilot_agents(submodule: Path, project_root: Path, rep: Reporter) -> None:
+    """Adapt agents/claude/*.md into Copilot's .github/agents/*.agent.md convention.
+
+    Confirmed against real .agent.md examples in github/awesome-copilot, fetched
+    directly: frontmatter fields description/name/tools, and a real read-only pattern
+    (context7.agent.md, doublecheck.agent.md both omit 'edit' and 'execute' entirely) —
+    the mechanism this mapping relies on to withhold execution. Tool names come from
+    COPILOT_TOOL_MAP, which documents its own confidence level: observed from real
+    examples, not confirmed against Copilot's own primary docs (network-blocked here).
+
+    ciso and planner keep their full "cannot execute code" claim, same reasoning as
+    Gemini — higher confidence than a guess, lower than Gemini's primary-doc-confirmed
+    guarantee. Flagged in the docstring rather than silently assumed either way.
+
+    `model` is omitted (defaults to the currently selected model per community docs) —
+    same no-confirmed-tier-mapping reasoning as the Cursor and Gemini ports.
+
+    Gated behind [options].copilot_agents, off by default.
+
+    Agents whose Claude tool grant includes an mcp__* tool are skipped entirely — see
+    MCP_PORT_SKIP_REASON.
+    """
+    src_dir = submodule / "agents" / "claude"
+    if not src_dir.exists():
+        return
+    dest_dir = project_root / ".github" / "agents"
+    for src in sorted(src_dir.glob("*.md")):
+        fields, body = parse_agent_file(src)
+        tools = [t.strip() for t in fields.get("tools", "").split(",")]
+        if _has_mcp_tools(tools):
+            rep.warn(f"{src.stem} {MCP_PORT_SKIP_REASON.format(target='Copilot')}")
+            continue
+        mapped = sorted({COPILOT_TOOL_MAP[t] for t in tools if t in COPILOT_TOOL_MAP})
+        tools_list = ", ".join(f"'{t}'" for t in mapped)
+        frontmatter = (
+            f"---\ndescription: {_yaml_single_quote(fields.get('description', ''))}\n"
+            f"name: {_yaml_single_quote(fields.get('name', src.stem))}\n"
+            f"tools: [{tools_list}]\n---\n"
+        )
+        write_file(dest_dir / f"{src.stem}.agent.md", frontmatter + "\n" + body.strip() + "\n", rep)
+
+
 def wire_tools(submodule: Path, project_root: Path, m: dict, agents_path: Path,
                rep: Reporter, force: bool) -> None:
     targets = set(m.get("tools", {}).get("targets", []))
@@ -245,13 +642,68 @@ def wire_tools(submodule: Path, project_root: Path, m: dict, agents_path: Path,
         place(agents_path, project_root / "GEMINI.md")
         if (submodule / "skills").exists():
             place(submodule / "skills", project_root / ".agents" / "skills")
+        # Both opt-in text transforms, not symlinks — see each function's docstring for
+        # what's confirmed (Gemini's own docs) versus mapped from those confirmed tools.
+        if opts.get("gemini_commands", False):
+            emit_gemini_commands(submodule, project_root, rep)
+        if opts.get("gemini_agents", False):
+            emit_gemini_agents(submodule, project_root, rep)
 
     if "copilot" in targets:
         place(agents_path, project_root / ".github" / "copilot-instructions.md")
+        # Copilot discovers Agent Skills from .github/skills/ (also .claude/skills and
+        # .agents/skills, so a project that also targets claude or gemini already gets
+        # skills for free — this covers the copilot-only case explicitly.
+        if (submodule / "skills").exists():
+            place(submodule / "skills", project_root / ".github" / "skills")
+        if opts.get("copilot_commands", False):
+            emit_copilot_prompts(submodule, project_root, rep)
+        if opts.get("copilot_agents", False):
+            emit_copilot_agents(submodule, project_root, rep)
 
-    if "cursor" in targets and opts.get("cursor_mdc", False):
-        emit_cursor_mdc(submodule, project_root, m, rep, force)
-    # cursor with cursor_mdc=false needs nothing: it reads AGENTS.md natively.
+    if "cursor" in targets:
+        # Cursor auto-discovers Agent Skills from .cursor/skills/, a separate mechanism
+        # from the glob-scoped .mdc rules below — unconditional on cursor_mdc, matching
+        # how skills wiring for claude/gemini isn't gated behind an extra flag either.
+        if (submodule / "skills").exists():
+            place(submodule / "skills", project_root / ".cursor" / "skills")
+        if opts.get("cursor_mdc", False):
+            emit_cursor_mdc(submodule, project_root, m, rep, force)
+        # cursor with cursor_mdc=false gets no .mdc rules: it reads AGENTS.md natively.
+        # Opt-in, unlike skills: a text transform, not a symlink of unchanged content.
+        if opts.get("cursor_commands", False):
+            emit_cursor_commands(submodule, project_root, rep)
+        if opts.get("cursor_agents", False):
+            emit_cursor_agents(submodule, project_root, rep)
+
+    if "windsurf" in targets:
+        # Windsurf reads root AGENTS.md natively — nothing to wire for rules. Skill
+        # wiring was investigated and deliberately not built: sources disagreed on
+        # whether .windsurf/skills/ is auto-discovered or skills must be manually
+        # pasted into .windsurfrules, and the disagreement wasn't resolved with a real
+        # example either way — see docs/DESIGN.md. Commands are confirmed; agents
+        # were not (no real .windsurf/agents example found, and Windsurf's mid-2026
+        # rebrand to "Devin Desktop" left the current convention ambiguous).
+        if opts.get("windsurf_commands", False):
+            emit_windsurf_workflows(submodule, project_root, rep)
+
+    if "codex" in targets:
+        # Codex reads root AGENTS.md natively — nothing to wire for rules. Confirmed via
+        # Codex's own docs/skills.md plus a real setup guide: skills load from
+        # $CODEX_HOME/skills, which defaults to ~/.codex/skills — the user's home
+        # directory, not the project. CODEX_HOME is a real, documented env var, though,
+        # so wiring a project-relative .codex/skills/ here is real support, not a stub —
+        # it just requires the project to set CODEX_HOME=<project-root>/.codex once
+        # (shell profile, .envrc, or CI env config) for Codex to read it. Unconditional
+        # on the target, like every other tool's skills wiring — see README for the
+        # setup step.
+        #
+        # No commands port: Codex's command-equivalent (custom prompts, ~/.codex/prompts/)
+        # is reportedly deprecated in favor of skills, so there is nothing worth building
+        # a transform for. No agents port: no evidence of a custom-agent convention was
+        # found at all, unlike skills/commands.
+        if (submodule / "skills").exists():
+            place(submodule / "skills", project_root / ".codex" / "skills")
 
 
 def main() -> int:
@@ -271,7 +723,9 @@ def main() -> int:
           + ("  [dry-run]" if args.dry_run else ""))
 
     agents_path = project_root / "AGENTS.md"
-    write_file(agents_path, build_agents_md(submodule, project_root, m, rep), rep)
+    agents_content = build_agents_md(submodule, project_root, m, rep)
+    write_file(agents_path, agents_content, rep)
+    check_token_budget(agents_content, m, rep)
     wire_tools(submodule, project_root, m, agents_path, rep, args.force)
 
     print("done." if not args.dry_run else "dry-run complete (nothing changed).")

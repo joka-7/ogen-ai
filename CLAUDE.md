@@ -8,6 +8,10 @@ Context for continuing this project in Claude Code. (This file is for working *o
 > the landscape research, every decision and its rationale, the rejected alternatives
 > (including why MCP was not used for rules), and the testing approach. If you feel like
 > you're missing the "why" behind anything below, it's in there.
+>
+> **[`docs/INVENTORY.md`](docs/INVENTORY.md) is the flat list of what exists** — every
+> rule fragment, skill, command, and agent with a one-line purpose. Update it in the same
+> commit as adding or removing one of those; it's hand-maintained, nothing checks it's current.
 
 ## What this repo is
 
@@ -40,9 +44,10 @@ Gemini, Copilot, Codex and any other AGENTS.md-aware tool read them. See `README
 - `rules/{base,languages/*,frameworks/*,practices/*}.md` — the fragments.
 - `skills/<name>/SKILL.md` — portable Agent Skills (frontmatter `name` + `description`).
 - `commands/claude/*.md` — Claude slash commands (least portable; Claude-primary).
-- `agents/claude/*.md` — eight role subagents (frontmatter `name` + `description` + `tools` +
-  `model`). Claude-only, opt-in via `[options] claude_agents`. Tool grants are the
-  enforcement — `ciso`/`planner` get no Bash, only `developer` gets Edit/Write.
+- `agents/claude/*.md` — eleven role subagents (frontmatter `name` + `description` +
+  `tools` + `model`). Claude-only, opt-in via `[options] claude_agents`. Tool grants are
+  the enforcement — `ciso`/`planner`/`tracker` get no Bash, `developer` and `docs-sync`
+  get Edit/Write, `tracker`/`docs-sync` reach Jira/Confluence via Atlassian MCP tools.
 - `skills/role_review/run_manifest.py` — tracks role-review runs per commit in a target
   repo's `.ai-reviews/manifest.json`; archives prior reports when the target moves on.
 - `bin/ai-sync` — the generator/installer (Python 3.11+, stdlib only).
@@ -71,16 +76,18 @@ python .ai/bin/ai-sync                          # then verify AGENTS.md + symlin
 Re-runs must stay idempotent; hand-written files at target paths must not be clobbered
 without `--force`. Both are covered by `tests/test_ai_sync.py` — keep them covered.
 
-## Open next steps (from the design conversation)
+## Open next steps
 
-1. **Fill `skills/scaffold-python-service/template/`** with a real FastAPI + strict-mypy
-   baseline (`pyproject.toml`, typed `main.py`, `errors.py`) so the skill scaffolds our
-   actual setup, not a stub.
-2. **Token-budget check in `ai-sync`** — warn when assembled AGENTS.md crosses a threshold,
-   to keep the always-on cost visible.
-3. **More language fragments** as needed (Go, Rust, Swift) under `rules/languages/`; add a
-   glob to `LANG_GLOBS` in `bin/ai-sync` for Cursor `.mdc` scoping.
-4. **More skills** (e.g. "port module to TS"). `release-checklist` shipped.
+The original four (scaffold template, token-budget check, Go/Rust/Swift fragments,
+`release-checklist` + `port-module-to-ts`) are all shipped. Carried over from the
+role-agent layer (§10 in DESIGN.md), flagged rather than decided:
+
+1. **`sre`'s Bash grant** is currently fenced (git metadata only, explicit prohibition
+   list) rather than withheld outright like `ciso`'s. Revisit if a tighter guarantee is
+   wanted.
+2. **`/role-implement` never commits**, matching `developer`'s own rule — it leaves a diff
+   for review. An opt-in commit flag (using the `conventional-commit` skill for the
+   message) is a plausible addition, not yet built.
 
 ## Editing conventions
 

@@ -32,7 +32,7 @@ Write its returned summary verbatim to `<workdir>/.ai-reviews/developer.md`, the
 python .ai/skills/role_review/run_manifest.py --project <workdir> --record developer=developer.md
 ```
 
-**8. Never commit or push.** That is `developer`'s own rule and this command does not override it. Report the diffstat (`git diff --stat` in `<workdir>`) and suggest `/role qa <path>` to re-verify before anyone commits.
+**8. Never commit or push.** That is `developer`'s own rule and this command does not override it. Report the diffstat (`git diff --stat` in `<workdir>`) and suggest `/role qa <path>` to re-verify before anyone commits. If the target has a Jira or Confluence integration configured, also suggest `/sync-tracker` (to transition the implemented items' tickets) and `/sync-docs` (to catch documentation drift the implementation introduced) as natural next steps — neither runs automatically.
 
 **Never invoke `developer` without having completed steps 1–5 first, under any circumstances** — not for a request that only names a path, not because the backlog "looks obviously right." This is the one command in the role-review layer permitted to invoke it, and that permission exists only because every step above already happened.
 

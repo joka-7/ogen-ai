@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Aggregates the completed role reports in .ai-reviews/ into one prioritized backlog with owners, severity, and deduplicated findings, written as a Prioritized Backlog. Use only after the reviewing roles (qa, architect, product, engineering-manager, sre, ciso) have finished and their reports exist on disk. Do NOT use as one of the parallel reviewers, and do NOT use it to review the target repo's source — it reads the reports, never the code, and that separation is the point of the aggregation step.
+description: Aggregates the completed role reports in .ai-reviews/ into one prioritized backlog with owners, severity, and deduplicated findings, written as a Prioritized Backlog. Use only after the reviewing roles (qa, architect, product, engineering-manager, sre, senior-dev, ciso) have finished and their reports exist on disk. Do NOT use as one of the parallel reviewers, and do NOT use it to review the target repo's source — it reads the reports, never the code, and that separation is the point of the aggregation step.
 tools: Read, Grep, Glob, Skill
 model: opus
 ---
@@ -21,9 +21,9 @@ schema differs from the reviewers' and is defined below.
 ## Context strategy
 
 1. **Read every report in `.ai-reviews/`** — `qa.md`, `architect.md`, `product.md`,
-   `engineering-manager.md`, `sre.md`, `ciso.md`. Whichever exist; a filtered run may have
-   produced fewer. Read them in full: they are already capped at 15 findings each, so this is
-   bounded.
+   `engineering-manager.md`, `sre.md`, `senior-dev.md`, `ciso.md`. Whichever exist; a filtered
+   run may have produced fewer. Read them in full: they are already capped at 15 findings
+   each, so this is bounded.
 2. **Read `.ai-reviews/audit_data.json`'s scores and `overall_score` only** — not its findings.
    The roles already consumed those; you want the mechanical scores as a sanity check against
    what the roles concluded.
@@ -45,6 +45,11 @@ different angles, and a backlog that lists it four times is worse than the separ
   (`SRE`) are one item: the fix is a secret store plus a deploy-time injection path, and doing
   either half alone leaves the service broken or the secret exposed. A committed credential and
   an unrelated missing resource limit are two items.
+- **`SDR` and `QA` overlap on a bug with no test.** `senior-dev` finding a real logic error
+  and `qa` finding the missing test case that would have caught it are one item — the fix is
+  the bug fix plus the regression test, not two separate backlog rows. `SDR` and `ARC` rarely
+  overlap: correctness-in-one-function and coupling-across-modules are different problems even
+  when they're in the same file.
 - **Merge upward.** When roles disagree on severity for the same finding, take the highest and
   say which role assigned it.
 - **Cite every source finding ID** you merged. The `Source findings` column is how a reader
