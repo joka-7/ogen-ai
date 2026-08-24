@@ -49,6 +49,7 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 | `release-checklist` | Walk a repo from its last tag to a version-bumped, tagged commit; never pushes |
 | `role_review` | Shared output schema, severity scale, and context-budget contract the role agents load |
 | `scaffold-python-service` | Scaffold a new Python service — FastAPI + strict-mypy baseline, gate-verified |
+| `write-design-doc` | Write HLD.md/LLD.md — either documenting an existing repo as-built, or proposing a new feature's design, against the HLD/LLD checklist |
 
 ## Commands (`commands/claude/`)
 
