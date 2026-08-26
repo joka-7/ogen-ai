@@ -47,6 +47,7 @@ import dataclasses
 import json
 import os
 import re
+import subprocess
 import sys
 import tomllib
 import xml.etree.ElementTree as ET
@@ -694,7 +695,83 @@ class DocumentationAnalyzer:
             findings.append(Finding(severity="medium", message="No README.md at project root."))
             score -= 10.0
 
+        score -= self._score_doc_set(scan, findings, metrics)
+
         return DomainResult(self.domain, int(clamp(score)), "low", findings, metrics)
+
+    def _score_doc_set(self, scan: ProjectScan, findings: list[Finding],
+                       metrics: dict[str, Any]) -> float:
+        """Check the standard doc set, per rules/practices/documentation.md.
+
+        This is the signal that answers "which of my repos are missing what"
+        across a whole account, so it reports each piece separately rather than
+        as one pass/fail. Staleness is checked by delegating to the repo_tree
+        skill's own generator — the only thing that knows how to rebuild a tree
+        — rather than reimplementing the comparison here.
+        """
+        present = {
+            "readme_tree": self._readme_has_tree(scan.root),
+            "structure": (scan.root / "docs" / "STRUCTURE.md").is_file(),
+            "hld": (scan.root / "docs" / "HLD.md").is_file(),
+            "lld": (scan.root / "docs" / "LLD.md").is_file(),
+        }
+        metrics["doc_set_present"] = present
+
+        labels = {
+            "readme_tree": "README.md has no repo tree (a reader can't tell which file to open)",
+            "structure": "No docs/STRUCTURE.md (annotated file tree)",
+            "hld": "No docs/HLD.md (system-level design)",
+            "lld": "No docs/LLD.md (per-file/function design)",
+        }
+        penalty = 0.0
+        for key, ok in present.items():
+            if not ok:
+                findings.append(Finding(severity="medium", message=labels[key]))
+                penalty += 5.0
+
+        stale = self._structure_doc_is_stale(scan.root) if present["structure"] else None
+        metrics["structure_doc_stale"] = stale
+        if stale:
+            findings.append(Finding(
+                severity="high",
+                message="docs/STRUCTURE.md no longer matches the real tree — a directory "
+                        "map nothing verifies actively misleads. Regenerate it.",
+                file="docs/STRUCTURE.md",
+            ))
+            penalty += 10.0
+        return penalty
+
+    @staticmethod
+    def _readme_has_tree(root: Path) -> bool:
+        readme = root / "README.md"
+        if not readme.is_file():
+            return False
+        try:
+            text = readme.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
+        return "BEGIN GENERATED TREE" in text
+
+    @staticmethod
+    def _structure_doc_is_stale(root: Path) -> bool | None:
+        """True/False from the generator, or None when it can't be run.
+
+        None is not False: "we could not check" and "it is current" are different
+        answers, and the agent's second pass needs to be able to tell them apart.
+        """
+        generator = Path(__file__).resolve().parent.parent / "repo_tree" / "gen_tree.py"
+        if not generator.is_file():
+            return None
+        try:
+            result = subprocess.run(
+                [sys.executable, str(generator), "--project", str(root), "--check"],
+                capture_output=True, text=True, timeout=120,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if result.returncode not in (0, 1):
+            return None
+        return result.returncode == 1
 
 
 class SecurityAnalyzer:

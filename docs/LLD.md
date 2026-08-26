@@ -272,7 +272,38 @@ Three CLI verbs, composed by the commands in §4:
   code is exactly what `role-implement.md` step 3 branches on to refuse acting on a backlog
   pinned to an older commit.
 
-## 7. `tests/` — what's actually checked, and by what
+## 7. `skills/repo_tree/gen_tree.py` — the annotated tree
+
+Implements HLD §8's documentation layer. Stdlib only, like every other script here, and
+standalone: `run_audit.py` invokes it as a **subprocess by path**, never an import, so the
+two skills stay independently copyable (same rule as `ProjectOverrides.load` in §6's
+neighbourhood — see DESIGN.md §4).
+
+- **`collect_paths(root)`** — `git ls-files -z` via `subprocess`, falling back to an
+  `os.walk` pruned by `PRUNE_DIRS` when the target isn't a git checkout. Tracked files only:
+  a new file joins the map at `git add`, which is what makes the CI gate exact.
+- **`Annotator.note_for(rel, is_dir)`** — the note precedence, and the precedence is the
+  contract: `docs/.structure-notes.toml` override → frontmatter `description:` → first
+  markdown heading → Python module docstring (also for extensionless files with a Python
+  shebang, which is how `bin/ai-sync` gets a line) → a directory's own `README.md` heading.
+  A human's override always outranks a heuristic. `_trim(shorten=False)` for overrides:
+  derived notes get clause-level shortening, hand-written ones only the length cap.
+- **`render_tree` / `TreeRenderer`** — folds paths into nested dicts, draws box connectors,
+  honours `--max-depth` and collapses directories past `--max-entries` into `… N more`.
+- **`splice(text, block, params)`** — rewrites only between
+  `BEGIN GENERATED TREE`/`END GENERATED TREE` HTML comments, and **stamps the parameters into
+  the BEGIN marker**. That stamp is what lets `--check` rebuild any marked file at the depth
+  it was originally made, without being told. A missing marker is an error (exit 2), never a
+  silent whole-file overwrite.
+- **`marked_files(root)`** — requires a *complete, ordered* BEGIN/END pair. A doc that
+  merely describes the convention in prose (DESIGN.md §13 does) must not be mistaken for a
+  block to rewrite; a lone BEGIN previously aborted the entire check run.
+- **`run_check(root)`** — regenerates every marked file, prints a unified diff, exits `1` if
+  any is stale, `0` otherwise. `DocumentationAnalyzer._structure_doc_is_stale` in
+  `run_audit.py` branches on exactly those codes, and maps anything else to `None` —
+  "couldn't check" is deliberately distinct from "current".
+
+## 8. `tests/` — what's actually checked, and by what
 
 - **`test_ai_sync.py`** — subprocess-drives `bin/ai-sync` against a synthetic submodule/project
   fixture built by `SyncHarness` (real files with marker content, e.g. `BASE-MARKER`,
@@ -289,6 +320,11 @@ Three CLI verbs, composed by the commands in §4:
 - **`test_run_manifest.py`** — drives `run_manifest.py` against a real temporary git repo
   (actual commits, actual `git rev-parse`), covering begin/record/status, archive-on-new-commit,
   idempotent re-begin at the same sha, and the three `--status` exit codes.
+- **`test_structure_doc.py`** — two jobs. `TestRepoIsCurrent` is the drift gate: it runs
+  `gen_tree.py --check` against **this** repo, so adding or renaming a tracked file without
+  regenerating fails CI. The rest drive the generator against throwaway git repos, pinning
+  the note precedence, that prose outside the markers survives, that a missing marker errors
+  instead of overwriting, and that `--check` rebuilds from the stamped parameters.
 
 Run before and after touching anything under `bin/`, `agents/`, `commands/`, or `skills/`:
 

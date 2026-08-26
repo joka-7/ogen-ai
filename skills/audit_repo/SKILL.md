@@ -66,9 +66,19 @@ is genuinely decoupled. That second pass is yours.
 - **Clean Code** — PEP 8 for Python; explicit type annotations everywhere (Python 3.12+
   idioms); for TypeScript/JS, strict typing (no stray `any`, no `@ts-ignore` suppressions)
   and modern ES+ standards.
-- **Documentation** — full docstrings/annotations present, and the docstrings explain the
-  underlying algorithm and flow of the solution, not just inputs/outputs. A one-line
-  docstring restating the signature does not satisfy this domain even if "present".
+- **Documentation** — two halves. *In-code*: full docstrings/annotations present, and the
+  docstrings explain the underlying algorithm and flow of the solution, not just
+  inputs/outputs. A one-line docstring restating the signature does not satisfy this domain
+  even if "present". *Repo-level*: the standard doc set from `rules/practices/documentation.md`
+  — `README.md` carrying a repo tree, `docs/STRUCTURE.md`, `docs/HLD.md`, `docs/LLD.md`. The
+  script reports these as `metrics.doc_set_present`, plus `metrics.structure_doc_stale`:
+  - `true` — the committed tree no longer matches the real one. Treat this as worse than a
+    missing map: a wrong directory map actively misleads. `/docs-bootstrap` or the
+    `repo-tree` skill regenerates it.
+  - `false` — verified current by the generator.
+  - `null` — **could not be checked** (the `repo_tree` skill isn't reachable from this
+    project), which is not the same as "current". Say so in the report rather than
+    scoring it as a pass.
 - **Security** — hardcoded secrets, proper permission management (least privilege, no
   root containers), infrastructure security hygiene (`.gitignore` covering secrets, safe
   Dockerfile defaults, no `eval`/`shell=True`/`pickle.loads` on untrusted input).
