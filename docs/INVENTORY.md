@@ -6,6 +6,12 @@ agent, with a one-line purpose and how it reaches a consuming project. `README.m
 `docs/HLD.md` and `docs/LLD.md` are the design-level views (system architecture and
 per-file/function detail, respectively); `docs/DESIGN.md` carries the full rationale.
 
+`docs/STRUCTURE.md` is the neighbouring list and the two do not overlap: **STRUCTURE says
+which file, INVENTORY says what it does** and which tools it reaches. STRUCTURE is generated
+from the real tree and CI-verified; this file carries the claims no filesystem walk can
+derive — coverage, port confidence, the tool-grant matrix — which is why it is still written
+by hand.
+
 **This file is hand-maintained.** `tests/test_conventions.py` checks structural conventions
 (frontmatter shape, tool grants, finding-ID prefixes) but does not check that this table is
 current. When you add or remove a rule fragment, skill, command, or agent, update the
@@ -31,6 +37,7 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 | `practices/git-commits.md` | `... "git-commits"` | Conventional Commits, one logical change per commit |
 | `practices/security.md` | `... "security"` | No hardcoded secrets, no logged PII, hostile-input validation |
 | `practices/architecture.md` | `... "architecture"` | HLD/LLD checklists, contract-vs-implementation, centralized error handling, structured logging |
+| `practices/documentation.md` | `... "documentation"` | The standard doc set (README tree, STRUCTURE/HLD/LLD), generated-not-written maps, mermaid diagrams |
 
 ## Skills (`skills/`)
 
@@ -47,6 +54,7 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 | `customize_config` | Scaffold `ai-project-config.toml` for project-local rule/weight overrides, outside `.ai/` |
 | `port-module-to-ts` | Port a JS/Python module's behavior into TypeScript against the TS rules |
 | `release-checklist` | Walk a repo from its last tag to a version-bumped, tagged commit; never pushes |
+| `repo_tree` | Generate/refresh the annotated file tree in `docs/STRUCTURE.md` + `README.md`, and `--check` it for drift |
 | `role_review` | Shared output schema, severity scale, and context-budget contract the role agents load |
 | `scaffold-python-service` | Scaffold a new Python service — FastAPI + strict-mypy baseline, gate-verified |
 | `write-design-doc` | Write HLD.md/LLD.md — either documenting an existing repo as-built, or proposing a new feature's design, against the HLD/LLD checklist |
@@ -77,6 +85,7 @@ versus a real example versus a documented fallback for each.
 | `/role-implement <items> [target]` | The only path to invoking `developer` — requires named, approved items |
 | `/sync-tracker [target]` | Push backlog/implementation status to Jira via `tracker` |
 | `/sync-docs [target]` | Sync in-repo docs and Confluence with the code via `docs-sync` |
+| `/docs-bootstrap [target]` | Create the standard doc set (repo tree, README section, HLD, LLD) for a repo that lacks it |
 
 ## Agents (`agents/claude/`)
 

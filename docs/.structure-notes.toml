@@ -1,0 +1,55 @@
+# Hand-written notes for docs/STRUCTURE.md's generated tree.
+#
+# `gen_tree.py` derives each file's one-line note from the file itself — YAML
+# frontmatter `description`, the first markdown heading, or a Python module
+# docstring. Files that cannot describe themselves (LICENSE, .gitignore, TOML,
+# templates) and directories with no README get their line here instead, and
+# keep it across every regeneration. An entry here always wins over whatever the
+# script would have derived, so use it to override a weak heading too.
+#
+# Keys are repo-relative POSIX paths. Directories may be written with or without
+# a trailing slash.
+
+[notes]
+".github" = "CI configuration"
+".github/workflows/checks.yml" = "The only CI gate: Python 3.11 + the full unittest suite"
+".gitignore" = "Ignores __pycache__/, *.pyc, .DS_Store — nothing generated lives in this repo"
+"LICENSE" = "MIT"
+"README.md" = "Start here: what this repo is, how the wiring works, how to set it up"
+"CLAUDE.md" = "Working context for Claude Code sessions on ogen-ai itself (never generated)"
+"ai-config.example.toml" = "Copy to a project as ai-config.toml — the per-project manifest"
+
+"adapters" = "Templates and notes for tool-specific wiring that ai-sync emits or you merge"
+"adapters/README.md" = "What each adapter is for and which are hand-merged vs generated"
+"adapters/claude-agent-permissions.json" = "permissions.deny rules to merge into a project's .claude/settings.json by hand"
+"adapters/cursor-rule.mdc.tmpl" = "Template for the glob-scoped .cursor/rules/*.mdc that emit_cursor_mdc renders"
+
+"agents" = "Role subagents — Claude-only, opt-in via [options] claude_agents"
+"agents/claude" = "Eleven role agents; the tools: grant is the enforcement, not the body text"
+
+"bin" = "The generator"
+"bin/ai-sync" = "Compiles AGENTS.md from the manifest and wires every tool target (stdlib only)"
+
+"commands" = "Slash commands"
+"commands/claude" = "Canonical $ARGUMENTS-driven Claude commands; four opt-in ports adapt them"
+
+"docs" = "Design and reference docs"
+"docs/.structure-notes.toml" = "This file — hand-written notes for the generated tree"
+"docs/DESIGN.md" = "Full rationale: every decision, the alternatives rejected, the sourcing"
+"docs/HLD.md" = "System-level view: components, data flow, the role-agent trust boundary"
+"docs/LLD.md" = "Per-file/function detail: tool-grant matrix, ai-sync internals, file contracts"
+"docs/INVENTORY.md" = "Flat index of what exists and what each unit does"
+"docs/STRUCTURE.md" = "This map — which file is which (generated)"
+
+"rules" = "Rule fragments compiled into a project's AGENTS.md, per its manifest"
+"rules/base.md" = "Always included — working agreement, code quality, safety, output discipline"
+"rules/frameworks" = "Opt-in per [stack].frameworks"
+"rules/languages" = "Opt-in per [stack].languages — one fragment per language"
+"rules/practices" = "Opt-in per [stack].practices — cross-language engineering practice"
+
+"skills" = "Portable Agent Skills (SKILL.md folders), wired whole into every target tool"
+"skills/scaffold-python-service/template" = "Files copied into a new service — FastAPI + strict-mypy baseline"
+"skills/scaffold-python-service/template/pyproject.toml" = "Baseline deps and the strict mypy/ruff config the scaffold ships with"
+"skills/scaffold-python-service/template/README.md" = "README stub the scaffolded service starts from"
+
+"tests" = "stdlib unittest suite — run before and after touching bin/, agents/, commands/, skills/"

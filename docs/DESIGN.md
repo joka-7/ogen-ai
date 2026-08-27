@@ -110,25 +110,33 @@ specifics into the submodule.
 
 ## 4. Components
 
-- `rules/base.md` — universal, language-agnostic engineering + agent-behavior rules.
-- `rules/languages/{python,typescript,javascript,kotlin,go,rust,swift}.md` — per-language
-  conventions.
-- `rules/frameworks/react.md` — framework conventions.
-- `rules/practices/{testing,git-commits,security,architecture}.md` — cross-cutting practices.
-- `agents/claude/*.md` — the eleven role subagents (§10, §12) plus `skills/role_review/SKILL.md`,
+> **The file-by-file list lives in [`STRUCTURE.md`](STRUCTURE.md)** — generated from the
+> real tree and verified by `tests/test_structure_doc.py`, so it cannot drift. This section
+> keeps only what a generated map can't say: what each component is *for*, and why it is
+> shaped that way. It used to duplicate the file list, which is exactly the drift §13
+> describes.
+
+- `rules/` — the fragments compiled into a project's `AGENTS.md`. `base.md` is always
+  included; languages, frameworks, and practices are opt-in per manifest, so a Python repo
+  never carries Kotlin rules into the context window.
+- `agents/claude/` — the eleven role subagents (§10, §12), plus `skills/role_review/SKILL.md`,
   the output contract the seven reviewing roles share.
-- `skills/{conventional-commit,scaffold-python-service,audit_repo,customize_config,
-  release-checklist}/SKILL.md` — example portable skills. `audit_repo` ships
-  `run_audit.py`, a stdlib-only collector script the skill runs before writing its report.
-  `customize_config` ships
-  `init_config.py`, which scaffolds a parent project's `ai-project-config.toml` — a
-  project-local override file (custom coding rules + per-domain audit weights) that
-  lives outside `.ai/` on purpose, since the submodule itself must never be hand-edited.
-  `run_audit.py` reads that same file directly (`ProjectOverrides.load`, self-contained —
-  not imported cross-skill) to bias `AuditOrchestrator`'s overall score toward the domains
-  a project weights higher, and to pass custom rules through for the auditing agent to
-  apply. See each skill's own docstrings for the algorithms.
-- `commands/claude/{review,test}.md` — example Claude slash commands (`$ARGUMENTS` tail).
+- `skills/` — portable skills. Three ship a stdlib-only script alongside `SKILL.md`, on the
+  same split: the script collects what is mechanically derivable, the agent does the
+  judgment pass.
+  - `audit_repo/run_audit.py` — objective repo-health signals, collected before the skill
+    writes its report.
+  - `customize_config/init_config.py` — scaffolds a parent project's `ai-project-config.toml`
+    (custom coding rules + per-domain audit weights), which lives outside `.ai/` on purpose,
+    since the submodule itself must never be hand-edited. `run_audit.py` reads that same file
+    directly (`ProjectOverrides.load`, self-contained — **not** imported cross-skill) to bias
+    `AuditOrchestrator`'s overall score toward the domains a project weights higher.
+  - `repo_tree/gen_tree.py` — the annotated file tree (§13). Also invoked by `run_audit.py`
+    as a subprocess for its staleness check, again by path rather than by import, to keep
+    each skill script standalone.
+
+  See each skill's own docstrings for the algorithms.
+- `commands/claude/` — Claude slash commands (`$ARGUMENTS` tail).
 - `bin/ai-sync` — the generator/installer. Python 3.11+ (tomllib), **stdlib only by design**.
 - `adapters/` — the Cursor `.mdc` template (emitted by the generator) and
   `claude-agent-permissions.json` (a hand-merged snippet the generator never writes).
@@ -698,3 +706,135 @@ tool its whole purpose depends on. A real per-platform mapping stays possible la
 own docs already name a different convention, `mcp_<server>_<tool>`, single underscores), but
 skip-with-a-reason is the honest default until one is confirmed for each platform the same way
 every other claim in §11 was: against a fetched primary doc or a real example, not a guess.
+
+---
+
+## 13. The repo tree: what none of the other docs answered
+
+By the time §12 landed, this repo had four docs about itself and still could not tell a new
+reader **which file to open**. `HLD.md` gave the system's shape, `LLD.md` per-function
+behavior, `INVENTORY.md` what each unit does, `DESIGN.md` the reasoning — and `README.md`
+had no structure section at all.
+
+Worse, the layout was restated by hand in four places that had already drifted apart:
+`CLAUDE.md`'s "Layout", §4 above, `HLD.md` §3's ASCII box (which embedded an abbreviated,
+already-stale file listing), and `INVENTORY.md` — whose own header admits it is
+hand-maintained and that `tests/test_conventions.py` does not check it. Four maps of one
+territory, none verified, is not four times the documentation; it is four chances to be
+wrong.
+
+### The decision: generate it, and fail the build on drift
+
+`skills/repo_tree/gen_tree.py` walks `git ls-files` and writes an annotated tree between
+`BEGIN GENERATED TREE`/`END GENERATED TREE` HTML-comment markers in `docs/STRUCTURE.md`
+(full) and `README.md` (depth 1). `tests/test_structure_doc.py` regenerates and diffs; CI fails if either is stale.
+
+The annotation is the part that makes it worth reading, and its design constraint was that
+notes must be **derivable from the file itself** — YAML frontmatter `description`, the first
+markdown heading, a Python module docstring — so they can be regenerated rather than
+maintained. Files that genuinely cannot describe themselves (`LICENSE`, `.gitignore`, TOML,
+templates) get a hand-written line in `docs/.structure-notes.toml`, which always outranks a
+derived note. That override file is the deliberate escape hatch: without it, either the tree
+is full of blank lines or the generator starts guessing.
+
+**Tracked files only.** `git ls-files` means a new file appears in the map after `git add`,
+not before. That is the correct boundary (an untracked scratch file is not part of the repo)
+and it makes the CI gate exact: whatever is committed is what gets mapped.
+
+### What was rejected
+
+- **Hand-writing `STRUCTURE.md`** like `INVENTORY.md` — it would have become the *fifth*
+  unverified restatement of the layout, which is the problem, not the fix.
+- **Generating it from `bin/ai-sync`**, so every project got one on `ai-sync` runs. Rejected
+  on scope: `ai-sync` wires configuration and owns every byte it writes. A project's
+  documentation is the project's, reviewed by a human before it lands — which is why
+  `/docs-bootstrap` writes a diff and never commits, matching `developer` and `docs-sync`.
+- **Deleting `INVENTORY.md`** now that a generated map exists. They answer different
+  questions: `STRUCTURE.md` says which file, `INVENTORY.md` says what it does and which
+  tools it reaches. Only the file list moved.
+
+### Why `INVENTORY.md` stays hand-maintained anyway
+
+Its tables carry claims no walk of the filesystem can derive — a rule fragment's coverage,
+a port's confidence level, the tool-grant matrix. Those are checked where they can be
+(`tests/test_conventions.py` verifies the agent matrix against the real frontmatter); the
+rest remain a maintainer's job, now narrowed to the part that actually needs judgment.
+
+### Diagrams became mermaid
+
+`HLD.md` §3 and §6 were ASCII box art. Mermaid renders natively on GitHub, survives editing
+(ASCII box art does not — one added word and the alignment is gone), and produces a readable
+diff. `rules/practices/documentation.md` makes this the standard rather than a local choice,
+since the same trees and diagrams are meant to land in every consuming repo.
+
+---
+
+## 14. Local-only use: any repo, without committing anything
+
+Prompted directly by wanting to point these rules/skills at repos this account doesn't
+control the remote of — a teammate's project, something open-source, a client repo — where
+adding a submodule or committing generated config was never going to be acceptable, and by
+the more basic case of not wanting every repo on disk to carry a permanent `.ai/` + tracked
+`AGENTS.md` just to try this out.
+
+### What already worked, and what didn't
+
+`main()`'s `submodule = Path(__file__).resolve().parent.parent` was already fully decoupled
+from `--project` — a single shared clone of this repo, anywhere on disk, already works
+against any target via `--project`, no vendoring required. That half needed no code change,
+only documenting (README's new "Local-only use" section).
+
+The other half didn't exist: nothing stopped `AGENTS.md`, `CLAUDE.md`, `.claude/`, etc. from
+landing as ordinary untracked-then-committed files. The README's own setup instructions said
+to commit them. For a repo you don't own, "just don't run `git add`" is not a workflow —
+one habitual `git add -A` and it's staged.
+
+### The mechanism: `.git/info/exclude`, not `.gitignore`
+
+Exactly the choice `/role-review` already made for `.ai-reviews/` (`docs/DESIGN.md`'s own
+words on that: "keeps reports out of `git status` without touching the project's committed
+`.gitignore`"). Applying the same rule here means `[options] local_only = true` (or
+`--local-only`) adds every path that run wrote — plus `ai-config.toml` and the local tail
+file, since "never committed" has to cover the manifest too — into `.git/info/exclude`.
+Nothing is ever staged, nothing shows up in `git status` for a collaborator to wonder about,
+and nothing can reach `origin` by accident.
+
+`Reporter.act()` was already the single choke point every write/symlink/copy call passes
+through, so it doubles as the record of "everything this run touched" (`rep.written`) with
+no separate bookkeeping added at each call site — the same reuse-what-already-tracks-it
+instinct as `gen_tree.py` shelling out to `run_audit.py`'s own generator rather than
+reimplementing it (§13).
+
+### A bug worth recording: `.resolve()` follows the symlink itself
+
+The first implementation computed each entry as `path.resolve().relative_to(project_root)`.
+That's wrong for exactly the paths that matter most here: in symlink mode, `.claude/skills`
+*is* a symlink whose target legitimately lives outside `project_root` (in the submodule).
+`Path.resolve()` follows a symlink in its own final component, not just normalizes the
+directories above it — so resolving `project_root/.claude/skills` returns the submodule's
+own path, `relative_to(project_root)` raises `ValueError`, and the entry is silently
+dropped. Caught by actually running it end-to-end and reading `.git/info/exclude` rather
+than trusting the code by inspection: symlink mode's whole 8-path output collapsed to 2.
+Fixed by never resolving — every path in `rep.written` is already absolute and correctly
+rooted at `project_root` (built as `project_root / "..."` at every call site), so a plain
+`relative_to` is both correct and sufficient.
+
+### Rewrite, not append
+
+Re-running with a smaller `[tools].targets` must shrink the excluded set, not just grow it
+forever. `apply_local_only` finds its own marked block by the same
+`BEGIN`/`END` comment-pair convention `gen_tree.py` uses for generated tree blocks, drops it,
+and re-appends the full current set — so the block always reflects exactly what this run
+wrote, and a byte-identical re-run is a true no-op (verified: same manifest, same
+`.git/info/exclude` bytes, twice).
+
+### What was deliberately left alone
+
+- **`.ai/` itself**, if a project still colocates it rather than using a fully external
+  shared clone. Whether that pointer should be tracked is a choice this generator doesn't
+  get to make for you — some projects want a pinned submodule commit even while keeping the
+  *generated output* untracked. Left as a one-line manual step in the README rather than
+  auto-excluded.
+- **A `--no-local-only` override** for a manifest with `local_only = true`. Not built:
+  `--local-only` only ever adds behavior in this design, so there's nothing to turn off from
+  the CLI that the manifest doesn't already control by being edited.

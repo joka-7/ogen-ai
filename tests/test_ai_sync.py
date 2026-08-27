@@ -643,6 +643,109 @@ class TestCopilotAgentsPort(SyncHarness):
         self.assertIn("skipped for Copilot", result.stderr)
 
 
+class TestLocalOnly(SyncHarness):
+    """`[options] local_only` / `--local-only`: everything written goes to .git/info/exclude."""
+
+    def _git_init(self) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=self.project, check=True)
+
+    def _exclude_text(self) -> str:
+        return (self.project / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+
+    def test_manifest_option_excludes_every_written_path_and_the_manifest_itself(self) -> None:
+        self._git_init()
+        self.write_config(targets=["claude"], options={"claude_agents": True, "local_only": True})
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        text = self._exclude_text()
+        for expected in (".claude", "AGENTS.md", "CLAUDE.md", "ai-config.toml"):
+            self.assertIn(expected, text.splitlines(), f"{expected!r} missing from exclude")
+
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=self.project,
+                                capture_output=True, text=True, check=True)
+        # .ai itself is the one thing local-only deliberately leaves alone (see docstring
+        # in bin/ai-sync) — everything ai-sync actually wrote must be gone from status.
+        self.assertEqual(status.stdout.strip(), "?? .ai")
+
+    def test_cli_flag_works_without_the_manifest_key(self) -> None:
+        self._git_init()
+        self.write_config(targets=["claude"])  # local_only left at its default (false)
+        result = self.run_sync("--local-only")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("AGENTS.md", self._exclude_text().splitlines())
+
+    def test_default_is_false_and_leaves_git_status_dirty(self) -> None:
+        self._git_init()  # git init itself seeds exclude with its own sample comments
+        before = self._exclude_text()
+        self.write_config(targets=["claude"])
+        self.run_sync()
+        self.assertEqual(self._exclude_text(), before)
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=self.project,
+                                capture_output=True, text=True, check=True)
+        self.assertIn("AGENTS.md", status.stdout)
+
+    def test_rerun_is_idempotent_and_does_not_duplicate_the_block(self) -> None:
+        self._git_init()
+        self.write_config(targets=["claude"], options={"local_only": True})
+        self.run_sync()
+        first = self._exclude_text()
+        self.run_sync()
+        second = self._exclude_text()
+        self.assertEqual(first, second)
+        self.assertEqual(second.count("ai-sync (local-only)"), 2)  # one BEGIN, one END
+
+    def test_shrinking_targets_refreshes_the_block_rather_than_appending(self) -> None:
+        self._git_init()
+        self.write_config(targets=["claude", "gemini"], options={"local_only": True})
+        self.run_sync()
+        self.assertIn(".agents", self._exclude_text().splitlines())  # gemini's skills port
+
+        self.write_config(targets=["claude"], options={"local_only": True})
+        self.run_sync()
+        self.assertNotIn(".agents", self._exclude_text().splitlines())
+        self.assertIn("AGENTS.md", self._exclude_text().splitlines())
+
+    def test_dry_run_reports_but_writes_nothing(self) -> None:
+        self._git_init()
+        before = self._exclude_text()
+        self.write_config(targets=["claude"], options={"local_only": True})
+        result = self.run_sync("--dry-run")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("exclude (local-only)", result.stdout)
+        self.assertEqual(self._exclude_text(), before)
+
+    def test_non_git_project_warns_instead_of_crashing(self) -> None:
+        # Deliberately no _git_init() — project has no .git at all.
+        self.write_config(targets=["claude"], options={"local_only": True})
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("doesn't look like a git checkout", result.stderr)
+        self.assertIn("AGENTS.md", result.stderr)
+
+    def test_worktree_style_git_file_redirect_is_followed(self) -> None:
+        """`.git` as a file (a worktree/submodule checkout) points at its real gitdir."""
+        self._git_init()
+        real_git_dir = self.project / ".git"
+        moved = self.project.parent / "real-gitdir"
+        real_git_dir.rename(moved)
+        (self.project / ".git").write_text(f"gitdir: {moved}\n", encoding="utf-8")
+
+        self.write_config(targets=["claude"], options={"local_only": True})
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        text = (moved / "info" / "exclude").read_text(encoding="utf-8")
+        self.assertIn("AGENTS.md", text.splitlines())
+
+    def test_copy_mode_is_also_covered(self) -> None:
+        self._git_init()
+        self.write_config(targets=["claude"],
+                          options={"link_mode": "copy", "local_only": True})
+        result = self.run_sync()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(".claude", self._exclude_text().splitlines())
+
+
 class TestAdaptArgumentsForCursor(unittest.TestCase):
     """Unit tests on the pure transform, since the end-to-end fixture only exercises
     the trailing-token case. Loads bin/ai-sync directly rather than via subprocess."""

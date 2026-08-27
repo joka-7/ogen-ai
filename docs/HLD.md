@@ -6,7 +6,8 @@ carries the full reasoning, alternatives rejected, and per-decision rationale. R
 first for the shape of the system; go to `DESIGN.md` when you need the "why" behind a
 specific line here. `docs/LLD.md` goes one level deeper still, into per-file/function
 behavior. `docs/INVENTORY.md` is the flat list of every fragment/skill/command/agent that
-exists.
+exists, and `docs/STRUCTURE.md` is the generated map of every *file* — this document names
+components, not files, and deliberately no longer restates the layout.
 
 ## 1. Problem and scope
 
@@ -41,43 +42,46 @@ Code session, never in `ai-sync` itself.
 
 ## 3. Component map
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│ ogen-ai (this repo, mounted at .ai/ in a consuming project)         │
-│                                                                       │
-│  rules/{base,languages/*,frameworks/*,practices/*}.md  ── fragments  │
-│  skills/<name>/SKILL.md                                ── on-demand  │
-│  commands/claude/*.md                                  ── Claude     │
-│  agents/claude/*.md                                     subagents/   │
-│                                                           subagents   │
-│  adapters/  (templates + notes for tool-specific wiring)             │
-│  bin/ai-sync  ─────────────────────────────────────────► generator   │
-│  tests/  (unittest suite covering ai-sync + conventions)             │
-└─────────────────────────────────────────────────────────────────────┘
-                              │  reads
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ consuming project root                                               │
-│  ai-config.toml         ── manifest: [stack] [tools] [options]       │
-│  ai-config.local.md     ── optional project-specific rule tail       │
-└─────────────────────────────────────────────────────────────────────┘
-                              │  ai-sync compiles + wires
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ generated / wired output, per [tools].targets                        │
-│  AGENTS.md  (the one real generated file)                            │
-│  CLAUDE.md, GEMINI.md, .github/copilot-instructions.md  (→ AGENTS.md)│
-│  .claude/{skills,commands,agents}, .agents/skills, .cursor/{skills,  │
-│  rules,commands,agents}, .github/{skills,prompts,agents}, .codex/    │
-│  skills, .windsurf/workflows                                         │
-└─────────────────────────────────────────────────────────────────────┘
-                              │  read natively by
-                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│ AI coding assistant session, working on the consuming project        │
-│  Claude Code adds: the role-agent layer (§6) — /role-review,        │
-│  /role, /role-backlog, /role-implement, /sync-tracker, /sync-docs    │
-└─────────────────────────────────────────────────────────────────────┘
+The pipeline, not the file list — for which file is which, see
+[`STRUCTURE.md`](STRUCTURE.md), the generated map of every file in this repo.
+
+```mermaid
+flowchart TD
+    subgraph SRC["ogen-ai — mounted at .ai/ in a consuming project"]
+        RULES["rules/<br/>fragments, composed per manifest"]
+        SKILLS["skills/<br/>on-demand procedures"]
+        CMDS["commands/claude/<br/>slash commands"]
+        AGENTS["agents/claude/<br/>role subagents"]
+        ADAPT["adapters/<br/>templates for tool-specific wiring"]
+        SYNC["bin/ai-sync<br/>the generator"]
+    end
+
+    subgraph PROJ["consuming project root"]
+        MANIFEST["ai-config.toml<br/>stack · tools · options"]
+        TAIL["ai-config.local.md<br/>optional project-specific tail"]
+    end
+
+    subgraph OUT["generated + wired output, per tools.targets"]
+        AGENTSMD["AGENTS.md<br/><b>the one real generated file</b>"]
+        LINKS["CLAUDE.md · GEMINI.md<br/>.github/copilot-instructions.md<br/>→ AGENTS.md"]
+        TREES[".claude/ · .agents/ · .cursor/<br/>.github/ · .codex/ · .windsurf/<br/>skills, commands, agents"]
+    end
+
+    SESSION["AI coding assistant session<br/>Claude Code adds the role-agent layer — §6"]
+
+    RULES --> SYNC
+    SKILLS --> SYNC
+    CMDS --> SYNC
+    AGENTS --> SYNC
+    ADAPT --> SYNC
+    MANIFEST --> SYNC
+    TAIL --> SYNC
+    SYNC -->|compiles| AGENTSMD
+    SYNC -->|wires| LINKS
+    SYNC -->|symlinks or copies| TREES
+    AGENTSMD --> SESSION
+    LINKS --> SESSION
+    TREES --> SESSION
 ```
 
 ## 4. Data flow
@@ -121,6 +125,13 @@ nothing is rewritten; a hand-written file sitting at a target path is never clob
 This one flag is why `bin/ai-sync` carries two parallel placement primitives (`rel_symlink`
 vs. `place_file`/`place_tree` — LLD §1) instead of one.
 
+`[options].local_only` (or `--local-only`) is orthogonal to `link_mode` — it applies after
+either placement mode, adding every path just written to `.git/info/exclude` instead of
+leaving it for the project to commit. Combined with `submodule` being resolved from
+`__file__` rather than `--project`, this is what makes "point one shared `ogen-ai` clone at
+any repo, including one you don't own, and never touch its git history" a supported
+workflow rather than something to reverse-engineer. See DESIGN.md §14 and LLD §1.
+
 ## 6. The role-agent layer (Claude Code only, opt-in)
 
 Eleven subagents under `agents/claude/`, installed only when `claude_agents = true`. Seven
@@ -129,22 +140,23 @@ review a target repo from different professional lenses and converge on one back
 push that state to Jira/Confluence. Full role-by-role detail is in `docs/DESIGN.md` §10 and
 §12; LLD §3 has the tool-grant matrix and file-format contract every agent must satisfy.
 
-```
-/role-review <target>   ──►  qa, architect, product, engineering-manager,
-                              sre, senior-dev, ciso   (parallel, each own context)
-                                        │
-                                        ▼
-                                    planner  ──►  .ai-reviews/BACKLOG.md
-                                        │
-                    (human names approved items, by row # or finding ID)
-                                        │
-                                        ▼
-                            /role-implement <items>  ──►  developer (writes code)
-                                        │
-                     ┌──────────────────┴──────────────────┐
-                     ▼                                      ▼
-            /sync-tracker ──► tracker                /sync-docs ──► docs-sync
-            (Jira, via Atlassian MCP)          (in-repo docs + Confluence, via MCP)
+```mermaid
+flowchart TD
+    REVIEW["/role-review &lt;target&gt;"]
+    FANOUT["qa · architect · product · engineering-manager<br/>sre · senior-dev · ciso<br/><i>parallel, each in its own context</i>"]
+    PLANNER["planner"]
+    BACKLOG[".ai-reviews/BACKLOG.md"]
+    HUMAN{"human names<br/>approved items"}
+    IMPL["/role-implement &lt;items&gt;"]
+    DEV["developer<br/><i>writes code, never commits</i>"]
+    TRACK["/sync-tracker → tracker<br/><i>Jira, via Atlassian MCP</i>"]
+    DOCS["/sync-docs → docs-sync<br/><i>in-repo docs + Confluence</i>"]
+    BOOT["/docs-bootstrap<br/><i>creates the doc set: tree, HLD, LLD</i>"]
+
+    REVIEW --> FANOUT --> PLANNER --> BACKLOG --> HUMAN --> IMPL --> DEV
+    DEV --> TRACK
+    DEV --> DOCS
+    BOOT -.->|"before there is anything to sync"| DOCS
 ```
 
 **Trust boundary, enforced by tool grants, not instructions.** Withholding a tool is the
@@ -190,3 +202,9 @@ a new language (needs a `LANG_GLOBS` entry for Cursor `.mdc` scoping — LLD §1
 target (needs a `wire_tools` branch), or a new cross-platform port (needs a new `emit_*`
 function). See `README.md`'s "Extending" section for the walkthrough, and LLD §1 for exactly
 where each of those lives in `bin/ai-sync`.
+
+The documentation layer added on top of this — `docs/STRUCTURE.md`, the `repo-tree` skill,
+`/docs-bootstrap` — is entirely in that first category. It is a skill and a command, so
+`ai-sync` places it as part of the trees it already places, and the generator was
+deliberately not extended to write documentation into consuming projects: it wires config,
+and a project's docs are its own to own and review.

@@ -4,7 +4,8 @@
   legibly in the code's own structure — what it does (responsibility/boundaries), why it's
   needed versus the alternatives, and how it flows end-to-end.
 - **HLD checklist:** requirements (functional + non-functional) → static view (components,
-  module boundaries) → dynamic view (sequence/data flow) → data storage (primary store, cache,
+  module boundaries, **and a real directory map** — the block diagram says how the system is
+  shaped, the directory map says which file to open) → dynamic view (sequence/data flow) → data storage (primary store, cache,
   blob storage, backup/DR) → config/secrets precedence (secrets manager > env > local config >
   defaults; fail fast on missing values at startup, don't default a secret) → data validation
   at the edge → integration-test strategy across component boundaries.
