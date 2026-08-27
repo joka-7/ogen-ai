@@ -766,3 +766,75 @@ rest remain a maintainer's job, now narrowed to the part that actually needs jud
 (ASCII box art does not — one added word and the alignment is gone), and produces a readable
 diff. `rules/practices/documentation.md` makes this the standard rather than a local choice,
 since the same trees and diagrams are meant to land in every consuming repo.
+
+---
+
+## 14. Local-only use: any repo, without committing anything
+
+Prompted directly by wanting to point these rules/skills at repos this account doesn't
+control the remote of — a teammate's project, something open-source, a client repo — where
+adding a submodule or committing generated config was never going to be acceptable, and by
+the more basic case of not wanting every repo on disk to carry a permanent `.ai/` + tracked
+`AGENTS.md` just to try this out.
+
+### What already worked, and what didn't
+
+`main()`'s `submodule = Path(__file__).resolve().parent.parent` was already fully decoupled
+from `--project` — a single shared clone of this repo, anywhere on disk, already works
+against any target via `--project`, no vendoring required. That half needed no code change,
+only documenting (README's new "Local-only use" section).
+
+The other half didn't exist: nothing stopped `AGENTS.md`, `CLAUDE.md`, `.claude/`, etc. from
+landing as ordinary untracked-then-committed files. The README's own setup instructions said
+to commit them. For a repo you don't own, "just don't run `git add`" is not a workflow —
+one habitual `git add -A` and it's staged.
+
+### The mechanism: `.git/info/exclude`, not `.gitignore`
+
+Exactly the choice `/role-review` already made for `.ai-reviews/` (`docs/DESIGN.md`'s own
+words on that: "keeps reports out of `git status` without touching the project's committed
+`.gitignore`"). Applying the same rule here means `[options] local_only = true` (or
+`--local-only`) adds every path that run wrote — plus `ai-config.toml` and the local tail
+file, since "never committed" has to cover the manifest too — into `.git/info/exclude`.
+Nothing is ever staged, nothing shows up in `git status` for a collaborator to wonder about,
+and nothing can reach `origin` by accident.
+
+`Reporter.act()` was already the single choke point every write/symlink/copy call passes
+through, so it doubles as the record of "everything this run touched" (`rep.written`) with
+no separate bookkeeping added at each call site — the same reuse-what-already-tracks-it
+instinct as `gen_tree.py` shelling out to `run_audit.py`'s own generator rather than
+reimplementing it (§13).
+
+### A bug worth recording: `.resolve()` follows the symlink itself
+
+The first implementation computed each entry as `path.resolve().relative_to(project_root)`.
+That's wrong for exactly the paths that matter most here: in symlink mode, `.claude/skills`
+*is* a symlink whose target legitimately lives outside `project_root` (in the submodule).
+`Path.resolve()` follows a symlink in its own final component, not just normalizes the
+directories above it — so resolving `project_root/.claude/skills` returns the submodule's
+own path, `relative_to(project_root)` raises `ValueError`, and the entry is silently
+dropped. Caught by actually running it end-to-end and reading `.git/info/exclude` rather
+than trusting the code by inspection: symlink mode's whole 8-path output collapsed to 2.
+Fixed by never resolving — every path in `rep.written` is already absolute and correctly
+rooted at `project_root` (built as `project_root / "..."` at every call site), so a plain
+`relative_to` is both correct and sufficient.
+
+### Rewrite, not append
+
+Re-running with a smaller `[tools].targets` must shrink the excluded set, not just grow it
+forever. `apply_local_only` finds its own marked block by the same
+`BEGIN`/`END` comment-pair convention `gen_tree.py` uses for generated tree blocks, drops it,
+and re-appends the full current set — so the block always reflects exactly what this run
+wrote, and a byte-identical re-run is a true no-op (verified: same manifest, same
+`.git/info/exclude` bytes, twice).
+
+### What was deliberately left alone
+
+- **`.ai/` itself**, if a project still colocates it rather than using a fully external
+  shared clone. Whether that pointer should be tracked is a choice this generator doesn't
+  get to make for you — some projects want a pinned submodule commit even while keeping the
+  *generated output* untracked. Left as a one-line manual step in the README rather than
+  auto-excluded.
+- **A `--no-local-only` override** for a manifest with `local_only = true`. Not built:
+  `--local-only` only ever adds behavior in this design, so there's nothing to turn off from
+  the CLI that the manifest doesn't already control by being edited.

@@ -3,13 +3,24 @@
 
 Run from the project root (where ai-config.toml lives):
 
-    python .ai/bin/ai-sync            # generate AGENTS.md + wire up the configured tools
-    python .ai/bin/ai-sync --dry-run  # show what would happen, change nothing
-    python .ai/bin/ai-sync --force    # overwrite real (non-symlink) files at target paths
+    python .ai/bin/ai-sync                # generate AGENTS.md + wire up the configured tools
+    python .ai/bin/ai-sync --dry-run      # show what would happen, change nothing
+    python .ai/bin/ai-sync --force        # overwrite real (non-symlink) files at target paths
+    python .ai/bin/ai-sync --local-only   # as above, but exclude everything via .git/info/exclude
 
 Requires Python 3.11+ (uses tomllib). One real file is generated — AGENTS.md.
 Everything else is a symlink to it or to the submodule, so there is a single
 source of truth and nothing to keep in sync by hand.
+
+Note on --local-only / [options] local_only (added Aug 2026): this repo's root is
+found from `__file__`, not from `--project` — see main()'s `submodule` line — so
+ai-sync already runs against any project from a single shared clone with no `.ai/`
+vendored inside it. `--local-only` (or the manifest key) is the other half: every
+path this run wrote, plus ai-config.toml/ai-config.local.md, gets added to
+`.git/info/exclude` — never the project's tracked .gitignore — so nothing here is
+ever staged, committed, or pushed by accident. Together these make "use these
+skills/rules in a repo I don't own or don't want to vendor anything into" a real,
+supported workflow rather than something you have to reverse-engineer.
 
 Note on .cursor/skills/ and .github/skills/ (added Aug 2026): the exact discovery
 paths these tools use for the Agent Skills / SKILL.md convention were sourced from
@@ -79,10 +90,16 @@ def estimate_tokens(text: str) -> int:
 class Reporter:
     def __init__(self, dry: bool) -> None:
         self.dry = dry
+        # Every path act() is ever called with — the single choke point every
+        # write/symlink/copy in this module already goes through, so it doubles
+        # as a free record of "everything this run touched" for local_only mode
+        # below, with no separate bookkeeping at each call site.
+        self.written: list[Path] = []
 
     def act(self, verb: str, path: Path) -> None:
         tag = "would " if self.dry else ""
         print(f"  {tag}{verb}: {path}")
+        self.written.append(path)
 
     def warn(self, msg: str) -> None:
         print(f"  ! {msg}", file=sys.stderr)
@@ -706,12 +723,111 @@ def wire_tools(submodule: Path, project_root: Path, m: dict, agents_path: Path,
             place(submodule / "skills", project_root / ".codex" / "skills")
 
 
+GIT_EXCLUDE_BEGIN = "# --- ai-sync (local-only): never stage, commit, or push these ---"
+GIT_EXCLUDE_END = "# --- end ai-sync (local-only) ---"
+
+
+def _git_exclude_path(project_root: Path) -> Path | None:
+    """Resolve the project's own (untracked) exclude file, or None if it isn't a git checkout.
+
+    Deliberately `.git/info/exclude`, never the project's own tracked `.gitignore` —
+    the same choice `/role-review` already makes for `.ai-reviews/` (see README.md's
+    Role agents section): it keeps generated paths out of `git status` without
+    editing a file someone else's clone will see a diff on.
+    """
+    git_entry = project_root / ".git"
+    if git_entry.is_dir():
+        return git_entry / "info" / "exclude"
+    if git_entry.is_file():
+        # A worktree or submodule checkout: ".git" is a file containing "gitdir: <path>".
+        try:
+            line = git_entry.read_text(encoding="utf-8").strip()
+        except OSError:
+            return None
+        if not line.startswith("gitdir:"):
+            return None
+        gitdir = Path(line.split(":", 1)[1].strip())
+        if not gitdir.is_absolute():
+            gitdir = (project_root / gitdir).resolve()
+        return gitdir / "info" / "exclude"
+    return None
+
+
+def apply_local_only(project_root: Path, manifest: dict, rep: Reporter) -> None:
+    """Add every path this run wrote to .git/info/exclude, so none of it can be pushed.
+
+    Reads what to exclude from `rep.written` — the same record every write/symlink/
+    copy call already left behind — rather than re-deriving the output paths from
+    the manifest a second time. Only the top-level component of each path is kept
+    (`.claude/skills` -> `.claude`), since one line covers everything ai-sync ever
+    places under a tool's directory. `ai-config.toml` and the local tail file are
+    added too: they are this project's own input, but "never touches origin" means
+    them as much as the generated output.
+    """
+    entries: set[str] = set()
+    for path in rep.written:
+        # Deliberately not .resolve()d: every path in rep.written is already
+        # absolute (built as project_root / "...") and often *is* a symlink
+        # whose target legitimately lives outside project_root (into the
+        # submodule) — resolving it would follow the link and report the
+        # submodule's own path instead of the project-relative one.
+        try:
+            rel = path.relative_to(project_root)
+        except ValueError:
+            continue  # not under project_root; nothing for this project's git to ignore
+        if rel.parts:
+            entries.add(rel.parts[0])
+
+    if (project_root / "ai-config.toml").exists():
+        entries.add("ai-config.toml")
+    local_tail = manifest.get("options", {}).get("local_tail", "ai-config.local.md")
+    if (project_root / local_tail).exists():
+        entries.add(local_tail)
+
+    if not entries:
+        return
+
+    if rep.dry:
+        for entry in sorted(entries):
+            rep.act("exclude (local-only)", Path(entry))
+        return
+
+    exclude_path = _git_exclude_path(project_root)
+    if exclude_path is None:
+        rep.warn(
+            f"local-only: {project_root} doesn't look like a git checkout — add these "
+            "to your own ignore file by hand: " + ", ".join(sorted(entries))
+        )
+        return
+
+    text = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
+    lines = text.splitlines()
+    if GIT_EXCLUDE_BEGIN in lines:
+        start = lines.index(GIT_EXCLUDE_BEGIN)
+        end = lines.index(GIT_EXCLUDE_END, start) if GIT_EXCLUDE_END in lines[start:] else len(lines)
+        lines = lines[:start] + lines[end + 1:]
+    if lines and lines[-1] != "":
+        lines.append("")
+    lines.extend([GIT_EXCLUDE_BEGIN, *sorted(entries), GIT_EXCLUDE_END])
+    new_text = "\n".join(lines) + "\n"
+
+    if new_text == text:
+        rep.act("ok (local-only exclude current)", exclude_path)
+        return
+    exclude_path.parent.mkdir(parents=True, exist_ok=True)
+    exclude_path.write_text(new_text, encoding="utf-8")
+    rep.act(f"excluded {len(entries)} path(s) (local-only)", exclude_path)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Assemble AI-assistant config from the .ai submodule.")
     ap.add_argument("--project", type=Path, default=Path.cwd(),
                     help="Project root (default: cwd).")
     ap.add_argument("--dry-run", action="store_true", help="Show actions without changing anything.")
     ap.add_argument("--force", action="store_true", help="Overwrite real files at target paths.")
+    ap.add_argument("--local-only", action="store_true",
+                    help="Exclude everything this run writes via .git/info/exclude — "
+                         "never staged, committed, or pushed. Same as [options] local_only.")
     args = ap.parse_args()
 
     project_root = args.project.resolve()
@@ -727,6 +843,10 @@ def main() -> int:
     write_file(agents_path, agents_content, rep)
     check_token_budget(agents_content, m, rep)
     wire_tools(submodule, project_root, m, agents_path, rep, args.force)
+
+    local_only = args.local_only or bool(m.get("options", {}).get("local_only", False))
+    if local_only:
+        apply_local_only(project_root, m, rep)
 
     print("done." if not args.dry_run else "dry-run complete (nothing changed).")
     return 0

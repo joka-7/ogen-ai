@@ -125,6 +125,13 @@ nothing is rewritten; a hand-written file sitting at a target path is never clob
 This one flag is why `bin/ai-sync` carries two parallel placement primitives (`rel_symlink`
 vs. `place_file`/`place_tree` — LLD §1) instead of one.
 
+`[options].local_only` (or `--local-only`) is orthogonal to `link_mode` — it applies after
+either placement mode, adding every path just written to `.git/info/exclude` instead of
+leaving it for the project to commit. Combined with `submodule` being resolved from
+`__file__` rather than `--project`, this is what makes "point one shared `ogen-ai` clone at
+any repo, including one you don't own, and never touch its git history" a supported
+workflow rather than something to reverse-engineer. See DESIGN.md §14 and LLD §1.
+
 ## 6. The role-agent layer (Claude Code only, opt-in)
 
 Eleven subagents under `agents/claude/`, installed only when `claude_agents = true`. Seven

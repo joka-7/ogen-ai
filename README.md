@@ -210,6 +210,36 @@ containerized/CI/cross-platform agent runs.
 - `--dry-run` — show every action, change nothing.
 - `--force` — replace a real (non-symlink) file sitting at a target path.
 - `--project PATH` — operate on a project root other than the current directory.
+- `--local-only` — exclude everything this run writes via `.git/info/exclude`; see below.
+
+## Local-only use: any repo, nothing committed or pushed
+
+Two things combine to make "use these rules/skills in a repo, without touching its git
+history at all" a first-class workflow — useful for a repo you don't own, one you're just
+contributing to, or your own repo where you'd rather not vendor anything in permanently:
+
+1. **One shared clone, any target.** `ai-sync` finds its own root from where the script
+   lives, not from `--project` — so a single clone of this repo, anywhere on your machine,
+   already works against every project you point it at. No `.ai/` submodule required:
+   ```bash
+   git clone <this-repo-url> ~/dev/ogen-ai      # once, anywhere
+   cd /path/to/any/repo                          # yours, or one you don't own
+   cp ~/dev/ogen-ai/ai-config.example.toml ai-config.toml
+   $EDITOR ai-config.toml                        # set local_only = true (see below)
+   python ~/dev/ogen-ai/bin/ai-sync
+   ```
+   Pull updates with `cd ~/dev/ogen-ai && git pull`, then re-run `ai-sync` from the target.
+2. **`[options] local_only = true`** (or `--local-only` for a one-off run without editing
+   the manifest) adds every path that run wrote — `AGENTS.md`, `CLAUDE.md`/`GEMINI.md`,
+   `.claude/`, `.cursor/`, etc. — plus `ai-config.toml` and the `local_tail` file, to
+   **`.git/info/exclude`**, never the project's own tracked `.gitignore`. That means: never
+   shown by `git status`, never picked up by `git add -A`, and never reachable by a push —
+   the same mechanism `/role-review` already uses for `.ai-reviews/`, applied to everything
+   `ai-sync` itself manages.
+
+The one thing left alone is `.ai/` itself, if you choose to keep a copy inside the project
+rather than using a fully external shared clone — add it to `.git/info/exclude` yourself if
+you want it invisible too; `ai-sync` doesn't assume whether you want that pointer tracked.
 
 ## Token budget
 

@@ -13,14 +13,19 @@ Entry point `main()` does exactly five things, in order, then returns 0:
 
 ```
 main()
- 1. parse --project / --dry-run / --force
+ 1. parse --project / --dry-run / --force / --local-only
  2. m = load_manifest(project_root)                    # read ai-config.toml
  3. agents_content = build_agents_md(...)               # assemble
     write_file(project_root / "AGENTS.md", ...)         # the one real generated file
     check_token_budget(agents_content, m, rep)           # warn only, never fails
  4. wire_tools(submodule, project_root, m, agents_path, rep, force)
- 5. print "done." / "dry-run complete"
+ 5. if local_only: apply_local_only(project_root, m, rep)
+ 6. print "done." / "dry-run complete"
 ```
+
+`submodule = Path(__file__).resolve().parent.parent` (not derived from `project_root`) is
+what lets one clone of this repo run against any project via `--project` alone — no `.ai/`
+vendored inside the target. See §1's local-only note below and DESIGN.md §14.
 
 ### Core data structures
 
@@ -157,6 +162,32 @@ regression coverage, and `docs/DESIGN.md` §12 for how this was caught.
   (`.devin/skills/`) whose precedence wasn't confirmed.
 - **Codex commands/agents port** — Codex's command-equivalent (custom prompts) is reportedly
   deprecated in favor of skills; no custom-agent convention was found for Codex at all.
+
+### `apply_local_only` — the `.git/info/exclude` writer
+
+Runs once, at the end of `main()`, only when `local_only` is true. Reads its input from
+`rep.written` — `Reporter.act()`'s own log of every path it was ever called with, so this
+adds no separate bookkeeping at any `place()`/`rel_symlink()`/`write_file()` call site.
+
+- Keeps only each path's **top-level component** relative to `project_root`
+  (`.claude/skills` → `.claude`) — one line covers everything under a tool's directory.
+- **Never `.resolve()`s** the paths first. They are already absolute
+  (`project_root / "..."`), and in symlink mode several of them *are* symlinks whose targets
+  legitimately live outside `project_root` — resolving would follow the link and report the
+  submodule's own path instead. A real regression this repo hit once; see DESIGN.md §14.
+- Always adds `ai-config.toml` and the manifest's `local_tail` file (default
+  `ai-config.local.md`) when present, alongside whatever `rep.written` produced — the
+  manifest itself is this project's input, and "never committed" has to cover it too.
+- Finds `.git/info/exclude` via `_git_exclude_path`, which follows a worktree/submodule
+  `.git`-file's `gitdir:` redirect rather than assuming `.git` is always a directory.
+- Rewrites its own marked block (`GIT_EXCLUDE_BEGIN`/`GIT_EXCLUDE_END`) rather than
+  appending — the same splice-and-replace shape `gen_tree.py` uses for generated tree
+  blocks — so a shrinking `[tools].targets` shrinks the excluded set too, and a byte-identical
+  re-run changes nothing on disk.
+- Not inside a git checkout at all → `rep.warn(...)` naming every path to add by hand,
+  never a hard failure — `ai-sync`'s own sync already succeeded regardless.
+- `--dry-run` reports every entry it *would* add via the same `rep.act()` path and writes
+  nothing, matching every other dry-run branch in this module.
 
 ## 2. Rule fragments (`rules/`)
 

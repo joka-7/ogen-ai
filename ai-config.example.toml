@@ -43,6 +43,14 @@ link_mode = "symlink"
 # to AGENTS.md — build/test commands, "do not touch" boundaries, architecture notes.
 local_tail = "ai-config.local.md"
 
+# Use these rules/skills here without ever committing or pushing anything: every
+# path this run writes, plus this file and local_tail, get added to
+# .git/info/exclude (never your tracked .gitignore), so nothing shows up in
+# `git status`, can't be `git add -A`'d by accident, and never reaches origin.
+# Ideal for a repo you don't own or don't want to vendor .ai/ into permanently —
+# see README.md's "Local-only use" section. Same effect as `ai-sync --local-only`.
+local_only = false
+
 # Emit per-language Cursor rules under .cursor/rules/*.mdc with glob scoping.
 # Off by default since Cursor reads the root AGENTS.md natively.
 cursor_mdc = false
