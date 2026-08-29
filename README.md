@@ -13,6 +13,39 @@ goes to per-file/function detail (exact tool-grant matrix, `bin/ai-sync`'s inter
 file-format contracts), and [`docs/DESIGN.md`](docs/DESIGN.md) carries the full reasoning
 behind every decision in both.
 
+## What you get
+
+Add this repo as a submodule to any project and `ai-sync` gives that project, in one pass:
+
+- **One `AGENTS.md`, every tool wired to it.** Write your project's coding rules once —
+  language/framework/practice fragments picked by a per-project manifest, plus your own
+  project-specific tail — and `bin/ai-sync` compiles them into a root `AGENTS.md`, then
+  symlinks (or copies) it into place for Claude Code, Cursor, Gemini CLI, Copilot, Codex,
+  and Windsurf. No more hand-copying the same guidance into five different config files, and
+  no drift between them.
+- **Rule fragments for the stack you actually use** — languages (Python, TypeScript, Go,
+  Rust, Kotlin, Swift, JavaScript), a framework (React), and cross-cutting practices
+  (architecture, testing, security, git commits, documentation) — opt in per project via
+  `ai-config.toml` so a Python repo never carries Kotlin rules into context.
+- **Portable Agent Skills and slash commands**, wired into every target tool's own
+  convention: `repo_tree` (generate/verify a repo's structure docs), `audit_repo` (scan a
+  repo for what's missing or stale), `write-design-doc`, `scaffold-python-service`,
+  `port-module-to-ts`, `release-checklist`, `conventional-commit`, `customize_config`, and
+  `role_review` — plus commands like `/review`, `/test`, `/docs-bootstrap`, and the
+  `/role-*` family below.
+- **An opt-in team of 11 role subagents** (`architect`, `qa`, `product`,
+  `engineering-manager`, `sre`, `senior-dev`, `ciso`, `planner`, `developer`, `tracker`,
+  `docs-sync`) that can review any repo from seven professional angles in parallel, converge
+  on one prioritized backlog, implement the approved items, and sync status to Jira and
+  Confluence — see [Role agents](#role-agents) below for the full workflow and its trust
+  boundaries.
+- **A documentation standard, and the tooling to enforce or bootstrap it** — every repo this
+  config reaches is expected to carry a README with a generated repo tree plus
+  `docs/STRUCTURE.md`/`HLD.md`/`LLD.md`; `audit_repo` reports what's missing or stale, and
+  `/docs-bootstrap` generates the set for a repo that has none.
+- **A local-only mode** for using any of the above in a repo you don't own, or don't want to
+  vendor anything into permanently — nothing touches that repo's tracked git history.
+
 ## Repo structure
 
 <!-- BEGIN GENERATED TREE (depth=1 entries=all) -->
