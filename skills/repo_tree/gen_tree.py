@@ -51,6 +51,11 @@ from pathlib import Path
 MARKER_BEGIN_RE = re.compile(r"<!-- BEGIN GENERATED TREE(?: \(([^)]*)\))? -->")
 MARKER_END = "<!-- END GENERATED TREE -->"
 
+#: A fenced code block (``` or ~~~, with any info string). Blanked out before
+#: *discovering* marked files: a doc teaching this convention shows a complete
+#: BEGIN/END pair inside a fence, and that example is not a block to rewrite.
+FENCE_RE = re.compile(r"^(?P<fence>```+|~~~+)[^\n]*\n.*?^(?P=fence)[ \t]*$", re.MULTILINE | re.DOTALL)
+
 #: Directories never worth mapping. Only consulted in the non-git fallback path;
 #: a real checkout gets this for free from .gitignore via ``git ls-files``.
 PRUNE_DIRS = frozenset({
@@ -394,6 +399,13 @@ def marked_files(root: Path) -> list[Path]:
     lone match there must not be mistaken for a block to rewrite — nor crash the
     whole check. `docs/STRUCTURE.md` losing its END marker is caught by
     `tests/test_structure_doc.py` instead, where it belongs.
+
+    Fenced code blocks are excluded for the same reason, one step further: a
+    guide that *shows* the convention rather than naming it carries a complete
+    BEGIN/END pair inside a ``` fence. That example is illustration, not a live
+    block — rewriting it would replace the teaching example with the host
+    repo's own tree, and `--check` would otherwise report the doc as stale
+    forever.
     """
     hits: list[Path] = []
     for rel in collect_paths(root):
@@ -401,8 +413,10 @@ def marked_files(root: Path) -> list[Path]:
             continue
         path = root / rel
         text = _read_text(path)
-        begin = MARKER_BEGIN_RE.search(text)
-        if begin and text.find(MARKER_END, begin.end()) != -1:
+        # Blank the fences rather than dropping them, so offsets stay valid.
+        searchable = FENCE_RE.sub(lambda m: "\n" * m.group(0).count("\n"), text)
+        begin = MARKER_BEGIN_RE.search(searchable)
+        if begin and searchable.find(MARKER_END, begin.end()) != -1:
             hits.append(path)
     return hits
 

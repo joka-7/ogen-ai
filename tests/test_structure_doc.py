@@ -286,3 +286,51 @@ class TestDiscoveryFallback(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMarkerDiscovery(GenTreeHarness):
+    """Which files `--check` treats as generated blocks."""
+
+    #: A complete BEGIN/END pair, as a doc teaching the convention would show it.
+    EXAMPLE_PAIR = (
+        "# Documentation conventions\n\n"
+        "Generated content lives between explicit markers:\n\n"
+        "```markdown\n"
+        "<!-- BEGIN GENERATED TREE -->\n"
+        "(the generator rewrites everything here)\n"
+        "<!-- END GENERATED TREE -->\n"
+        "```\n\n"
+        "Never hand-edit between them.\n"
+    )
+
+    def test_marker_pair_inside_a_code_fence_is_not_a_generated_block(self) -> None:
+        # Arrange: a guide that *illustrates* the marker convention, and a real
+        # generated doc alongside it so --check has something legitimate to do.
+        self.write("docs/conventions.md", self.EXAMPLE_PAIR)
+        self.write("docs/STRUCTURE.md",
+                   "# Structure\n\n<!-- BEGIN GENERATED TREE -->\n<!-- END GENERATED TREE -->\n")
+        self.track()
+        self.run_script("--output", "docs/STRUCTURE.md")
+        self.track()
+
+        # Act
+        result = self.run_script("--check")
+
+        # Assert: the fenced example is untouched and does not make --check fail.
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            (self.project / "docs/conventions.md").read_text(encoding="utf-8"),
+            self.EXAMPLE_PAIR,
+        )
+
+    def test_marker_pair_outside_a_fence_is_still_a_generated_block(self) -> None:
+        # Arrange: the same markers as real content, not an example.
+        self.write("docs/STRUCTURE.md",
+                   "# Structure\n\n<!-- BEGIN GENERATED TREE -->\nstale\n<!-- END GENERATED TREE -->\n")
+        self.track()
+
+        # Act
+        result = self.run_script("--check")
+
+        # Assert: a genuine block that has drifted is still reported.
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)

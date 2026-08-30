@@ -25,7 +25,8 @@ per-file/function behavior; [`DESIGN.md`](DESIGN.md) carries the reasoning behin
 ogen-ai/
 ├── .github/                           # CI configuration
 │   └── workflows/
-│       └── checks.yml                 # The only CI gate: Python 3.11 + the full unittest suite
+│       ├── checks.yml                 # The only CI gate: Python 3.11 + the full unittest suite
+│       └── security.yml
 ├── adapters/                          # Templates and notes for tool-specific wiring that ai-sync emits or you merge
 │   ├── README.md                      # What each adapter is for and which are hand-merged vs generated
 │   ├── claude-agent-permissions.json  # Permissions.deny rules to merge into a project's .claude/settings.json by hand
