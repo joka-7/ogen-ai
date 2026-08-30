@@ -7,11 +7,19 @@ on:
 
 jobs:
   test:
+    name: Test suite (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # ai-sync is documented as Python 3.11+ and stdlib-only, and it runs on
+        # whatever interpreter a parent project happens to have — so the floor
+        # is part of the contract and gets tested, not just the newest release.
+        python-version: ["3.11", "3.12"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
       - name: Run test suite
         run: python -m unittest discover -s tests -v
