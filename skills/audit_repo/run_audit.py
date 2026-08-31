@@ -50,7 +50,6 @@ import re
 import subprocess
 import sys
 import tomllib
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -109,6 +108,14 @@ CONFIG_FILENAMES: frozenset[str] = frozenset(
 
 MAX_FILE_BYTES_DEFAULT = 2_000_000
 DEFAULT_LINE_LENGTH = 99
+
+# A Cobertura report carries line-rate on its root element, so the opening tag is
+# all that is ever read. 64 KiB is far past any realistic root tag and caps what a
+# hostile coverage.xml in an audited project can make this process allocate.
+_COVERAGE_HEAD_BYTES = 64 * 1024
+_COVERAGE_LINE_RATE_RE = re.compile(
+    rb"""<coverage\b[^>]*?\sline-rate\s*=\s*["']([^"']*)["']"""
+)
 
 
 def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
@@ -971,19 +978,35 @@ class TestingAnalyzer:
 
     @staticmethod
     def _parse_coverage_xml(root: Path) -> float | None:
-        """Parse a Cobertura-style ``coverage.xml``, if present, as an overall % line rate."""
+        """Read the overall line rate from a Cobertura-style ``coverage.xml``, if present.
+
+        The audited project is untrusted input, so this reads a bounded prefix and
+        matches the root element's ``line-rate`` attribute instead of parsing the
+        document. A stdlib XML parser on untrusted input is an entity-expansion
+        denial of service (bandit B314), and defusing it would mean a dependency
+        this repo deliberately does not have — while only this one attribute is
+        ever read.
+
+        Args:
+            root: Root directory of the audited project.
+
+        Returns:
+            Line coverage as a percentage, or ``None`` when the file is absent,
+            unreadable, or carries no ``line-rate`` on its root element.
+        """
         path = root / "coverage.xml"
         if not path.exists():
             return None
         try:
-            tree = ET.parse(path)
-        except ET.ParseError:
+            with path.open("rb") as handle:
+                head = handle.read(_COVERAGE_HEAD_BYTES)
+        except OSError:
             return None
-        line_rate = tree.getroot().attrib.get("line-rate")
-        if line_rate is None:
+        match = _COVERAGE_LINE_RATE_RE.search(head)
+        if match is None:
             return None
         try:
-            return float(line_rate) * 100.0
+            return float(match.group(1)) * 100.0
         except ValueError:
             return None
 
