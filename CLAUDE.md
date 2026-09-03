@@ -117,3 +117,11 @@ role-agent layer (§10 in DESIGN.md), flagged rather than decided:
 - The `.ai` mount path is referenced in `commands/claude/*`, `agents/claude/*`,
   `skills/*/SKILL.md`, and `README.md`; if it changes, update those.
 - `bin/ai-sync` is stdlib-only by design — don't add dependencies to it.
+- **This repo is public. Nothing here may name a consuming project.** Rules, skills
+  and commands are generic by design — they describe *how* to work, never *which*
+  repositories exist. A `rulesets/` directory of per-repo branch-protection JSON was
+  added here once and had to be removed: one file per consumer meant the filenames
+  alone published the names of private repositories, along with their CI job names.
+  Per-project configuration belongs in the project, which is what `ai-config.toml`
+  is for. If something genuinely needs to know the set of consumers, it does not
+  live in this repository.
