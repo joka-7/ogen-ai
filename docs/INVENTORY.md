@@ -38,6 +38,7 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 | `practices/security.md` | `... "security"` | No hardcoded secrets, no logged PII, hostile-input validation |
 | `practices/architecture.md` | `... "architecture"` | HLD/LLD checklists, contract-vs-implementation, centralized error handling, structured logging |
 | `practices/documentation.md` | `... "documentation"` | The standard doc set (README tree, STRUCTURE/HLD/LLD), generated-not-written maps, mermaid diagrams |
+| `practices/verification.md` | `... "verification"` | Run the real check before calling something done, independent review for non-trivial changes, evidence-backed findings |
 
 ## Skills (`skills/`)
 
@@ -52,6 +53,7 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 | `audit_repo` | Score a target repo 0–100 across six domains; writes `AUDIT_REPORT.md` |
 | `conventional-commit` | Write a Conventional Commits message from the staged diff |
 | `customize_config` | Scaffold `ai-project-config.toml` for project-local rule/weight overrides, outside `.ai/` |
+| `lesson-capture` | Turn a correction into a written rule (in `local_tail`, the project's own `AGENTS.md`/`CLAUDE.md`, or `ai-project-config.toml`) instead of only this session's memory |
 | `port-module-to-ts` | Port a JS/Python module's behavior into TypeScript against the TS rules |
 | `release-checklist` | Walk a repo from its last tag to a version-bumped, tagged commit; never pushes |
 | `repo_tree` | Generate/refresh the annotated file tree in `docs/STRUCTURE.md` + `README.md`, and `--check` it for drift |
