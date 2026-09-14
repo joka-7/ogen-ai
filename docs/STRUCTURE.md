@@ -80,7 +80,8 @@ ogen-ai/
 │   │   ├── documentation.md           # Documentation
 │   │   ├── git-commits.md             # Commits & PRs
 │   │   ├── security.md                # Security
-│   │   └── testing.md                 # Testing
+│   │   ├── testing.md                 # Testing
+│   │   └── verification.md            # Verification before done
 │   └── base.md                        # Always included — working agreement, code quality, safety, output discipline
 ├── skills/                            # Portable Agent Skills (SKILL.md folders), wired whole into every target tool
 │   ├── audit_repo/
@@ -91,6 +92,8 @@ ogen-ai/
 │   ├── customize_config/
 │   │   ├── SKILL.md                   # Scaffold and apply ai-project-config.toml — a project-local override file for…
 │   │   └── init_config.py             # Scaffold `ai-project-config.toml` for the customize_config skill.
+│   ├── lesson-capture/
+│   │   └── SKILL.md                   # Turn a correction into a written rule instead of just a memory for this…
 │   ├── port-module-to-ts/
 │   │   └── SKILL.md                   # Port a JavaScript or Python module to TypeScript — translate its public API,…
 │   ├── release-checklist/
