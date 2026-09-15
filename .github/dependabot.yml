@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # bin/ai-sync is stdlib-only by design (see CLAUDE.md) — no Python or npm
+  # ecosystem to track. Just keep the Actions themselves patched.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
