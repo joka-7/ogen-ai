@@ -64,6 +64,7 @@ ogen-ai/
 ├── CLAUDE.md               # Working context for Claude Code sessions on ogen-ai itself (never generated)
 ├── LICENSE                 # MIT
 ├── README.md               # Start here: what this repo is, how the wiring works, how to set it up
+├── SECURITY.md             # Security Policy
 └── ai-config.example.toml  # Copy to a project as ai-config.toml — the per-project manifest
 ```
 <!-- END GENERATED TREE -->

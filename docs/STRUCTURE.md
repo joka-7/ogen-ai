@@ -24,9 +24,10 @@ per-file/function behavior; [`DESIGN.md`](DESIGN.md) carries the reasoning behin
 ```text
 ogen-ai/
 ├── .github/                           # CI configuration
-│   └── workflows/
-│       ├── checks.yml                 # The only CI gate: Python 3.11 + the full unittest suite
-│       └── security.yml
+│   ├── workflows/
+│   │   ├── checks.yml                 # The only CI gate: Python 3.11 + the full unittest suite
+│   │   └── security.yml
+│   └── dependabot.yml
 ├── adapters/                          # Templates and notes for tool-specific wiring that ai-sync emits or you merge
 │   ├── README.md                      # What each adapter is for and which are hand-merged vs generated
 │   ├── claude-agent-permissions.json  # Permissions.deny rules to merge into a project's .claude/settings.json by hand
@@ -128,6 +129,7 @@ ogen-ai/
 ├── CLAUDE.md                          # Working context for Claude Code sessions on ogen-ai itself (never generated)
 ├── LICENSE                            # MIT
 ├── README.md                          # Start here: what this repo is, how the wiring works, how to set it up
+├── SECURITY.md                        # Security Policy
 └── ai-config.example.toml             # Copy to a project as ai-config.toml — the per-project manifest
 ```
 <!-- END GENERATED TREE -->
