@@ -26,6 +26,7 @@ ogen-ai/
 ├── .github/                           # CI configuration
 │   ├── workflows/
 │   │   ├── checks.yml                 # The only CI gate: Python 3.11 + the full unittest suite
+│   │   ├── docs.yml
 │   │   └── security.yml
 │   └── dependabot.yml
 ├── adapters/                          # Templates and notes for tool-specific wiring that ai-sync emits or you merge
