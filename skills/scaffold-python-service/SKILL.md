@@ -15,6 +15,7 @@ Create a new Python service that already conforms to the Python and testing rule
 ├── src/<pkg>/__init__.py
 ├── src/<pkg>/main.py       # typed entrypoint
 ├── src/<pkg>/errors.py     # base exception + a couple of concrete ones
+├── src/<pkg>/logging_config.py  # dictConfig + JSON formatter, called from the entry point only
 ├── tests/test_smoke.py
 └── README.md
 ```
@@ -25,8 +26,9 @@ Create a new Python service that already conforms to the Python and testing rule
 2. Read `template/` in this skill folder for the baseline files; adapt names, don't copy verbatim. It scaffolds around a placeholder package named `example_service` — rename every occurrence (directory, `pyproject.toml`'s `name`/`[tool.hatch.build.targets.wheel]`, and every import) to the real package name.
 3. Generate the tree above. `pyproject.toml` must enable `mypy --strict`, `ruff` lint+format, and `pytest`. Target Python 3.11+.
 4. `main.py` and `errors.py` carry full type hints and a small custom exception hierarchy (see the Python rules).
-5. Write one real smoke test that imports and exercises the entrypoint.
-6. Print the commands to install (`pip install -e ".[dev]"`) and verify (`ruff check . && mypy src && pytest`).
+5. Logging is wired from day one: modules use `logging.getLogger(__name__)`, only the entrypoint calls `configure_logging()`, and ruff enforces no `print` (`T20`). Keep this for libraries too, minus the `configure_logging()` call (libraries never configure handlers).
+6. Write one real smoke test that imports and exercises the entrypoint.
+7. Print the commands to install (`pip install -e ".[dev]"`) and verify (`ruff check . && mypy src && pytest`).
 
 ## Rules
 
