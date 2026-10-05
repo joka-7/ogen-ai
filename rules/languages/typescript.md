@@ -8,4 +8,5 @@
 - Errors: custom classes extending `Error` so `instanceof` works; never throw strings. For expected failures, prefer a typed `Result`/discriminated-union return over throwing.
 - Prefer immutable transformations (`map`/`filter`/`reduce`, spread) over in-place mutation.
 - Keep types close to where they're used; export shared contracts from a dedicated module. Don't over-abstract with deep generics unless it removes real duplication.
+- Logging: a structured logger (`pino` or `winston`) behind a thin project interface — never `console.log` in service/library code. Log objects, not interpolated strings (`log.info({ orderId }, "msg")`), pass errors as `err` so the stack serializes, child loggers for request context, redact secrets via the logger's redaction config. Never log secrets or PII.
 - Baseline tooling: `tsc --noEmit`, ESLint (typescript-eslint strict), Prettier.

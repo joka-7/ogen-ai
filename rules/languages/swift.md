@@ -14,4 +14,5 @@
 - Errors conform to `Error` and are thrown, not returned as sentinel values; handle with
   `do`/`catch` or `try?` deliberately, matching the caller's actual ability to recover.
 - Prefer `let` over `var`; minimize mutable and shared-mutable state.
+- Logging: Apple's unified `os.Logger` (or `swift-log` for server-side/cross-platform) with a subsystem/category per module; never `print` in shipped code. Use the privacy annotations (`\(value, privacy: .private)`) and pick levels deliberately (`debug`/`info`/`error`). Never log secrets or PII.
 - Baseline tooling: SwiftLint, SwiftFormat, `swift test`/XCTest.

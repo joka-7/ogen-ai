@@ -8,4 +8,5 @@
 - Use extension functions to keep call sites readable, but don't hide surprising behavior in them.
 - Prefer expression bodies and the standard scope functions (`let`, `run`, `apply`, `also`, `with`) idiomatically — not stacked so deep they obscure flow.
 - Errors: prefer sealed result types or `Result<T>` for expected failures over exceptions in business logic.
+- Logging: SLF4J facade (`LoggerFactory.getLogger`/`KotlinLogging`) with Logback or Log4j2 as the backend; never `println`. Parameterized messages (`log.info("x {}", x)`) or lambda form, pass the throwable as the last arg to keep the stack trace, put request context in MDC, JSON encoder in production. Never log secrets or PII.
 - Baseline tooling: `ktlint`/`detekt`, compiler warnings treated as errors where practical.

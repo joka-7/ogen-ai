@@ -9,4 +9,5 @@
 - Async: don't mix blocking I/O into `async` code paths. No `time.sleep` in coroutines; use `asyncio.sleep`. Don't create fire-and-forget tasks without holding a reference.
 - Prefer comprehensions and generators over manual accumulation loops; prefer generators for large/streamed data.
 - Structure: keep business logic out of I/O/framework layers. Pure functions where feasible for testability.
+- Logging: stdlib `logging` only — never `print` in library/service code. One `logger = logging.getLogger(__name__)` per module; libraries attach only a `NullHandler`, and only the application entry point configures handlers/levels (`logging.config.dictConfig`). Lazy args (`logger.info("x %s", x)`, not f-strings); `logger.exception(...)` inside `except` to keep the traceback; pass context via `extra=` / `contextvars` + a `Filter`, and emit JSON in production (`python-json-logger` or `structlog` wrapping stdlib). Never log secrets or PII.
 - Tooling baseline: `ruff` (lint + format), `mypy`/`pyright`, `pytest`. Assume these run in CI; write code that passes them.
