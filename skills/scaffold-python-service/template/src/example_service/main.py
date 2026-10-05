@@ -7,10 +7,15 @@ that this layer calls and translates into HTTP.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from example_service.errors import NotFoundError, ServiceError, ValidationError
+from example_service.logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -27,10 +32,11 @@ def create_app() -> FastAPI:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     @app.exception_handler(ServiceError)
-    async def _service_error(_: Request, exc: ServiceError) -> JSONResponse:
+    async def _service_error(request: Request, exc: ServiceError) -> JSONResponse:
         # Catch-all for expected-but-unmapped ServiceError subclasses. A genuine bug
         # (anything not deriving from ServiceError) is deliberately left to propagate
         # rather than being caught here — see errors.py.
+        logger.warning(f"unmapped service error: {exc}", extra={"path": request.url.path})
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 
     @app.get("/health")
@@ -40,4 +46,6 @@ def create_app() -> FastAPI:
     return app
 
 
+# Entry point: the only place logging is configured.
+configure_logging()
 app = create_app()

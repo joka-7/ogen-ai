@@ -33,7 +33,7 @@ target-version = "py311"
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "SIM"]
+select = ["E", "F", "I", "UP", "B", "SIM", "T20", "LOG"]  # T20: no print(); G004 stays off — f-strings in logs are allowed
 
 [tool.mypy]
 python_version = "3.11"

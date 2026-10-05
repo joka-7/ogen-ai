@@ -50,6 +50,7 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 
 | Skill | Purpose |
 |---|---|
+| `add-logging` | Add/fix structured logging in code using the language's idiomatic logger, per the language rules |
 | `audit_repo` | Score a target repo 0–100 across six domains; writes `AUDIT_REPORT.md` |
 | `conventional-commit` | Write a Conventional Commits message from the staged diff |
 | `customize_config` | Scaffold `ai-project-config.toml` for project-local rule/weight overrides, outside `.ai/` |
