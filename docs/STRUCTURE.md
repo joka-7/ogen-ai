@@ -86,6 +86,8 @@ ogen-ai/
 │   │   └── verification.md            # Verification before done
 │   └── base.md                        # Always included — working agreement, code quality, safety, output discipline
 ├── skills/                            # Portable Agent Skills (SKILL.md folders), wired whole into every target tool
+│   ├── add-logging/
+│   │   └── SKILL.md                   # Add or fix logging in code using the project's language-idiomatic structured…
 │   ├── audit_repo/
 │   │   ├── SKILL.md                   # Scan a target project and produce a scored (0-100) health report,…
 │   │   └── run_audit.py               # Collect objective repository-health signals for the audit_repo skill.
