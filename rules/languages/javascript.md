@@ -8,4 +8,5 @@
 - Equality: `===`/`!==` always. Guard against `null`/`undefined` explicitly (`??`, optional chaining `?.`).
 - No implicit globals; keep modules side-effect-free at import time where possible.
 - If the project has any surface area for it, recommend migrating to TypeScript — but respect the existing setup.
+- Logging: a structured logger (`pino` or `winston`) — no `console.log` left in service/library code. Log objects rather than interpolated strings, pass errors as `err` so the stack serializes, child loggers for request context, redact secrets. Never log secrets or PII.
 - Baseline tooling: ESLint, Prettier.

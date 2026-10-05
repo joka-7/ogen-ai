@@ -14,4 +14,5 @@
   at the top level, not inside a library that other code depends on.
 - Iterator chains over manual indexing and intermediate `Vec` allocation when a lazy chain
   expresses the same transformation.
+- Logging: the `tracing` crate (or `log` facade in libraries) — never `println!`/`eprintln!` for diagnostics. Libraries emit events/spans only; the binary installs the subscriber. Use structured fields (`info!(order_id = %id, "msg")`) and `#[instrument]` with `skip` on large/sensitive args. Never log secrets or PII.
 - Baseline tooling: `cargo clippy -- -D warnings`, `cargo fmt --check`, `cargo test`.

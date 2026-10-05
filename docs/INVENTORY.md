@@ -25,7 +25,7 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 | Fragment | Included by | Covers |
 |---|---|---|
 | `base.md` | always | Working agreement, code quality, safety, output discipline |
-| `languages/python.md` | `languages = ["python"]` | Modern typing, `mypy --strict`, dataclasses, one error hierarchy per package |
+| `languages/python.md` | `languages = ["python"]` | Modern typing, `mypy --strict`, dataclasses, one error hierarchy per package, stdlib `logging` conventions |
 | `languages/typescript.md` | `... "typescript"` | `strict: true`, no `any`, `interface`/`type` split, discriminated unions |
 | `languages/javascript.md` | `... "javascript"` | JS-specific conventions (no static typing to lean on) |
 | `languages/kotlin.md` | `... "kotlin"` | Null safety (no `!!`), sealed classes, structured coroutines |

@@ -15,5 +15,6 @@
 - Panic only for programmer errors and invariant violations that should crash, never for
   expected/recoverable failures — those return an `error`.
 - Table-driven tests as the default shape; subtests via `t.Run` for clear failure output.
+- Logging: stdlib `log/slog` (1.21+) with a `*slog.Logger` injected, not a global. Key/value attrs (`logger.Info("msg", "order_id", id)`), `JSONHandler` in production, `slog.*Context` so request-scoped attrs propagate. Log an error once, where it is handled — not at every wrap. Never log secrets or PII.
 - Baseline tooling: `go vet`, `golangci-lint`, `gofmt`/`goimports` (non-negotiable formatting),
   `go test ./...`.
