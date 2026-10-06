@@ -60,6 +60,8 @@ ogen-ai/
 │       ├── sync-tracker.md                # Sync a target repo's review backlog and implementation status to Jira via the…
 │       └── test.md                        # Write or extend tests for the code in $ARGUMENTS following the testing rules
 ├── docs/                                  # Design and reference docs
+│   ├── audits/                            # Point-in-time audits of this repo — snapshots, not kept current
+│   │   └── 2026-10-skills-roles-audit.md  # Full audit of skills, roles, ai-sync, scripts, tests and CI: bugs, verdicts,…
 │   ├── .structure-notes.toml              # This file — hand-written notes for the generated tree
 │   ├── DESIGN.md                          # Full rationale: every decision, the alternatives rejected, the sourcing
 │   ├── HLD.md                             # System-level view: components, data flow, the role-agent trust boundary
