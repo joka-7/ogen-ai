@@ -147,6 +147,21 @@ def _trim(note: str, *, shorten: bool = True) -> str:
     return note[:1].upper() + note[1:] if note else note
 
 
+def load_root_label(root: Path) -> str:
+    """Tree heading: `[tree] root_label` from the notes file, else the directory name.
+
+    Lets a repo whose checkout directory varies (CI, containers, cloud agents) keep a
+    stable generated tree.
+    """
+    path = root / OVERRIDES_FILE
+    try:
+        with path.open("rb") as handle:
+            label = tomllib.load(handle).get("tree", {}).get("root_label")
+    except (OSError, tomllib.TOMLDecodeError, AttributeError):
+        return root.name
+    return label if isinstance(label, str) and label else root.name
+
+
 def load_overrides(root: Path) -> dict[str, str]:
     """Read hand-written notes from docs/.structure-notes.toml, if present.
 
@@ -321,7 +336,7 @@ def render_block(root: Path, max_depth: int | None, max_entries: int | None) -> 
     width = max((len(label) for label, note in rows if note), default=0)
     width = min(width, 48)
 
-    lines = ["```text", f"{root.name}/"]
+    lines = ["```text", f"{load_root_label(root)}/"]
     for label, note in rows:
         lines.append(f"{label.ljust(width)}  # {note}".rstrip() if note else label)
     lines.append("```")

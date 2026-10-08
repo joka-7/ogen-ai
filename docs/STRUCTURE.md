@@ -25,7 +25,7 @@ per-file/function behavior; [`DESIGN.md`](DESIGN.md) carries the reasoning behin
 ogen-ai/
 ├── .github/                               # CI configuration
 │   ├── workflows/
-│   │   ├── checks.yml                     # The only CI gate: Python 3.11 + the full unittest suite
+│   │   ├── checks.yml                     # Test suite on Python 3.11-3.13 (docs and security have their own workflows)
 │   │   ├── docs.yml
 │   │   └── security.yml
 │   └── dependabot.yml
@@ -129,7 +129,7 @@ ogen-ai/
 │   ├── test_conventions.py                # Conformance tests for this repo's own agents, skills, and commands.
 │   ├── test_run_manifest.py               # Behavioral tests for skills/role_review/run_manifest.py.
 │   └── test_structure_doc.py              # Behavioral tests for skills/repo_tree/gen_tree.py, and a drift gate on…
-├── .gitignore                             # Ignores __pycache__/, *.pyc, .DS_Store — nothing generated lives in this repo
+├── .gitignore                             # Ignores Python caches, virtualenvs, .env files, audit output and .DS_Store
 ├── CLAUDE.md                              # Working context for Claude Code sessions on ogen-ai itself (never generated)
 ├── LICENSE                                # MIT
 ├── README.md                              # Start here: what this repo is, how the wiring works, how to set it up

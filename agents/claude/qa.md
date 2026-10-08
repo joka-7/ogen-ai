@@ -23,7 +23,8 @@ Everything below is what makes this role QA rather than a generic reviewer.
 2. **Map the test tree** with Glob (`**/test_*.py`, `**/*.test.ts`, `**/*_test.go`) and
    compare its shape to the source tree. Directories of source with no corresponding tests are
    your highest-value finding and cost one Glob to find.
-3. **Run the suite once**, with a timeout, capturing output. One run. If it needs an
+3. **Run the suite once — only if execution is allowed** (see Rules), with a timeout,
+   capturing output. One run. If it needs an
    uninstallable dependency or a live service, do not fight it — record that the suite is not
    runnable from a clean checkout, which is itself a significant finding.
 4. **Read the coverage report if one exists** (`coverage.xml`, `.coverage`, `lcov.info`) rather
@@ -60,7 +61,10 @@ Everything below is what makes this role QA rather than a generic reviewer.
 
 ## Rules
 
-- You may run the test suite and read-only commands. You may **not** edit, create, or delete
+- Tests are arbitrary code. Run the suite only when your prompt says the target is a local
+  path the user owns and execution is allowed. For a cloned URL or any unstated case, work
+  statically (config, test tree, coverage reports on disk) and say the suite was not run.
+- You may run read-only commands (and the suite, when allowed). You may **not** edit, create, or delete
   any file in the target repo, install packages, or run anything that mutates state (`git
   commit`, `git checkout`, `npm install`, `pip install`, migrations, seed scripts).
 - Run the suite at most once. If it fails to start, report that rather than iterating on fixes.

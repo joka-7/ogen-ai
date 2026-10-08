@@ -784,5 +784,65 @@ class TestAdaptArgumentsForCursor(unittest.TestCase):
                 self.assertNotIn("$ARGUMENTS", self.adapt(body))
 
 
+class TestHardening(SyncHarness):
+    def test_hand_written_agents_md_is_not_clobbered(self) -> None:
+        self.write_config()
+        self.agents_md.write_text("# mine\n", encoding="utf-8")
+        self.run_sync()
+        self.assertEqual(self.agents_md.read_text(encoding="utf-8"), "# mine\n")
+        self.run_sync("--force")
+        self.assertIn("BASE-MARKER", self.agents_md.read_text(encoding="utf-8"))
+
+    def test_hand_written_ported_command_is_not_clobbered(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_commands": True})
+        mine = self.project / ".cursor" / "commands" / "demo.md"
+        mine.parent.mkdir(parents=True)
+        mine.write_text("hand written\n", encoding="utf-8")
+        self.run_sync()
+        self.assertEqual(mine.read_text(encoding="utf-8"), "hand written\n")
+
+    def test_ported_command_refreshes_on_rerun_when_untouched(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_commands": True})
+        self.run_sync()
+        port = self.project / ".cursor" / "commands" / "demo.md"
+        self.assertTrue(port.exists())
+        self._write(self.submodule / "commands" / "claude" / "demo.md",
+                    "---\ndescription: Demo\n---\nNew body.\n")
+        self.run_sync()
+        self.assertIn("New body.", port.read_text(encoding="utf-8"))
+
+    def test_symlinked_parent_cannot_redirect_writes_outside_project(self) -> None:
+        self.write_config(targets=["cursor"], options={"cursor_commands": True})
+        outside = Path(self._tmp.name) / "outside"
+        outside.mkdir()
+        (self.project / ".cursor").symlink_to(outside)
+        self.run_sync()
+        self.assertEqual(list(outside.rglob("*.md")), [])
+
+    def test_absolute_fragment_name_is_rejected(self) -> None:
+        secret = Path(self._tmp.name) / "secret"
+        self._write(secret.with_suffix(".md"), "TOP-SECRET\n")
+        self.write_config(languages=[str(secret)])
+        result = self.run_sync()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.agents_md.exists())
+
+    def test_local_tail_must_stay_inside_project(self) -> None:
+        self.write_config(options={"local_tail": "../outside.md"})
+        self.assertNotEqual(self.run_sync().returncode, 0)
+
+    def test_string_instead_of_list_is_a_clear_error(self) -> None:
+        self._write(self.project / "ai-config.toml", '[stack]\nlanguages = "python"\n')
+        result = self.run_sync()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("must be a list", result.stderr)
+
+    def test_malformed_toml_is_a_clear_error(self) -> None:
+        self._write(self.project / "ai-config.toml", "[stack\n")
+        result = self.run_sync()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("Traceback", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

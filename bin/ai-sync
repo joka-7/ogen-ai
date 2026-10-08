@@ -44,6 +44,8 @@ deliberately NOT built — see docs/DESIGN.md for why.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -87,9 +89,18 @@ def estimate_tokens(text: str) -> int:
     return len(text) // CHARS_PER_TOKEN_ESTIMATE
 
 
+STATE_FILENAME = ".ai-sync-state.json"
+FRAGMENT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
 class Reporter:
     def __init__(self, dry: bool) -> None:
         self.dry = dry
+        # Set by configure(); until then write_file keeps its unguarded behavior so
+        # emitters can still be exercised on their own.
+        self.project_root: Path | None = None
+        self.force = False
+        self.owned: dict[str, str] = {}
         # Every path act() is ever called with — the single choke point every
         # write/symlink/copy in this module already goes through, so it doubles
         # as a free record of "everything this run touched" for local_only mode
@@ -104,6 +115,24 @@ class Reporter:
     def warn(self, msg: str) -> None:
         print(f"  ! {msg}", file=sys.stderr)
 
+    def configure(self, project_root: Path, force: bool) -> None:
+        self.project_root = project_root
+        self.force = force
+        state = project_root / STATE_FILENAME
+        try:
+            data = json.loads(state.read_text(encoding="utf-8"))
+            files = data.get("files", {})
+            self.owned = {k: v for k, v in files.items()
+                          if isinstance(k, str) and isinstance(v, str)}
+        except (OSError, ValueError, AttributeError):
+            self.owned = {}
+
+    def save_state(self) -> None:
+        if self.dry or self.project_root is None or not self.owned:
+            return
+        state = self.project_root / STATE_FILENAME
+        _atomic_write(state, json.dumps({"files": self.owned}, indent=2, sort_keys=True) + "\n")
+
 
 def load_manifest(project_root: Path) -> dict:
     cfg = project_root / "ai-config.toml"
@@ -112,8 +141,36 @@ def load_manifest(project_root: Path) -> dict:
             f"No ai-config.toml at {project_root}. "
             "Copy .ai/ai-config.example.toml there and edit it."
         )
-    with cfg.open("rb") as fh:
-        return tomllib.load(fh)
+    try:
+        with cfg.open("rb") as fh:
+            m = tomllib.load(fh)
+    except tomllib.TOMLDecodeError as exc:
+        sys.exit(f"{cfg} is not valid TOML: {exc}")
+    validate_manifest(m, cfg)
+    return m
+
+
+def validate_manifest(m: dict, cfg: Path) -> None:
+    """Fail before writing anything when the manifest has unsafe or mistyped values."""
+    problems: list[str] = []
+    stack = m.get("stack", {})
+    for key in ("languages", "frameworks", "practices"):
+        names = stack.get(key, [])
+        if not isinstance(names, list) or not all(isinstance(n, str) for n in names):
+            problems.append(f"[stack].{key} must be a list of strings, got {names!r}")
+            continue
+        for n in names:
+            if not FRAGMENT_NAME.fullmatch(n):
+                problems.append(f"[stack].{key}: invalid fragment name {n!r}")
+    targets = m.get("tools", {}).get("targets", [])
+    if not isinstance(targets, list) or not all(isinstance(t, str) for t in targets):
+        problems.append(f"[tools].targets must be a list of strings, got {targets!r}")
+    tail = m.get("options", {}).get("local_tail", "ai-config.local.md")
+    if (not isinstance(tail, str) or not tail or Path(tail).is_absolute()
+            or ".." in Path(tail).parts):
+        problems.append(f"[options].local_tail must be a relative path inside the project, got {tail!r}")
+    if problems:
+        sys.exit(f"Invalid {cfg}:\n  " + "\n  ".join(problems))
 
 
 def read_fragment(submodule: Path, kind: str, name: str, rep: Reporter) -> str | None:
@@ -197,14 +254,58 @@ def _rmtree(p: Path) -> None:
     shutil.rmtree(p)
 
 
+def _atomic_write(path: Path, content: str) -> None:
+    tmp = path.with_name(f".{path.name}.ai-sync-tmp")
+    tmp.write_text(content, encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def _digest(content: str) -> str:
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def _contained(path: Path, root: Path) -> bool:
+    """True if path's parent directory resolves (following symlinks) inside root."""
+    try:
+        path.parent.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def write_file(path: Path, content: str, rep: Reporter) -> None:
+    """Write generated text. Refuses to escape the project or clobber hand-written files.
+
+    A regular file already at `path` is replaced only if it carries the ai-sync banner,
+    or its hash matches what a previous run recorded, or --force was given.
+    """
+    root = rep.project_root
+    if root is not None:
+        if not _contained(path, root):
+            rep.warn(f"{path} resolves outside the project (symlinked parent?) — skipped")
+            return
+        key = path.relative_to(root).as_posix() if path.is_relative_to(root) else str(path)
+        if path.exists() and not path.is_symlink():
+            try:
+                current = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                current = ""
+            unchanged = _digest(current) == rep.owned.get(key)
+            if current == content:
+                rep.owned[key] = _digest(content)
+                rep.act("ok (current)", path)
+                return
+            if not (rep.force or unchanged or _ours_file(path)):
+                rep.warn(f"{path} exists and is not managed by ai-sync — skipped (use --force)")
+                return
+        rep.owned[key] = _digest(content)
     if not rep.dry:
         path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink() and not rep.dry:
         path.unlink()
     rep.act("write", path)
     if not rep.dry:
-        path.write_text(content, encoding="utf-8")
+        _atomic_write(path, content)
 
 
 MANAGED_MARKER = ".ai-managed"
@@ -780,6 +881,8 @@ def apply_local_only(project_root: Path, manifest: dict, rep: Reporter) -> None:
 
     if (project_root / "ai-config.toml").exists():
         entries.add("ai-config.toml")
+    if rep.owned:
+        entries.add(STATE_FILENAME)
     local_tail = manifest.get("options", {}).get("local_tail", "ai-config.local.md")
     if (project_root / local_tail).exists():
         entries.add(local_tail)
@@ -833,6 +936,7 @@ def main() -> int:
     project_root = args.project.resolve()
     submodule = Path(__file__).resolve().parent.parent  # .../.ai
     rep = Reporter(args.dry_run)
+    rep.configure(project_root, args.force)
 
     m = load_manifest(project_root)
     print(f"ai-sync: project={project_root}  submodule={submodule}"
@@ -843,6 +947,7 @@ def main() -> int:
     write_file(agents_path, agents_content, rep)
     check_token_budget(agents_content, m, rep)
     wire_tools(submodule, project_root, m, agents_path, rep, args.force)
+    rep.save_state()
 
     local_only = args.local_only or bool(m.get("options", {}).get("local_only", False))
     if local_only:
