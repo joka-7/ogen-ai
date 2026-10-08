@@ -75,7 +75,7 @@ MAX_FILE_BYTES = 400_000
 DEFAULT_STRUCTURE_HEADER = """# Repository structure
 
 Every file in this repo and what is inside it. The tree below is **generated** —
-run `python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md`
+run `python .ai/skills/repo-tree/gen_tree.py --project . --output docs/STRUCTURE.md`
 to refresh it, and never edit between the markers by hand.
 
 <!-- BEGIN GENERATED TREE -->
@@ -462,7 +462,7 @@ def run_check(root: Path) -> int:
     if stale:
         names = ", ".join(p.relative_to(root).as_posix() for p in stale)
         print(f"\nstale generated tree in: {names}", file=sys.stderr)
-        print("refresh with: python .ai/skills/repo_tree/gen_tree.py "
+        print("refresh with: python .ai/skills/repo-tree/gen_tree.py "
               "--project . --output <file>", file=sys.stderr)
         return 1
 

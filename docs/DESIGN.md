@@ -119,19 +119,19 @@ specifics into the submodule.
 - `rules/` — the fragments compiled into a project's `AGENTS.md`. `base.md` is always
   included; languages, frameworks, and practices are opt-in per manifest, so a Python repo
   never carries Kotlin rules into the context window.
-- `agents/claude/` — the eleven role subagents (§10, §12), plus `skills/role_review/SKILL.md`,
+- `agents/claude/` — the eleven role subagents (§10, §12), plus `skills/role-review/SKILL.md`,
   the output contract the seven reviewing roles share.
 - `skills/` — portable skills. Three ship a stdlib-only script alongside `SKILL.md`, on the
   same split: the script collects what is mechanically derivable, the agent does the
   judgment pass.
-  - `audit_repo/run_audit.py` — objective repo-health signals, collected before the skill
+  - `audit-repo/run_audit.py` — objective repo-health signals, collected before the skill
     writes its report.
-  - `customize_config/init_config.py` — scaffolds a parent project's `ai-project-config.toml`
+  - `customize-config/init_config.py` — scaffolds a parent project's `ai-project-config.toml`
     (custom coding rules + per-domain audit weights), which lives outside `.ai/` on purpose,
     since the submodule itself must never be hand-edited. `run_audit.py` reads that same file
     directly (`ProjectOverrides.load`, self-contained — **not** imported cross-skill) to bias
     `AuditOrchestrator`'s overall score toward the domains a project weights higher.
-  - `repo_tree/gen_tree.py` — the annotated file tree (§13). Also invoked by `run_audit.py`
+  - `repo-tree/gen_tree.py` — the annotated file tree (§13). Also invoked by `run_audit.py`
     as a subprocess for its staleness check, again by path rather than by import, to keep
     each skill script standalone.
 
@@ -223,7 +223,7 @@ each concern lives instead of restating it.
   enforcement") a checked invariant rather than a claim: `Edit`/`Write` only on `developer`,
   no `Bash` on `ciso` or `planner`, every reviewer's finding-ID prefix present in the shared
   contract, and the fan-out and single-role commands agreeing on the role list.
-- `tests/test_run_manifest.py` covers `skills/role_review/run_manifest.py` (§10): opening and
+- `tests/test_run_manifest.py` covers `skills/role-review/run_manifest.py` (§10): opening and
   reusing a run, archiving on a new commit, staleness detection via exit code, and the CLI's
   usage errors.
 
@@ -343,16 +343,16 @@ lenses. Second, a review of a large repo is exactly the workload that should not
 context window — seven roles each burning 25 file reads in one context would blow it out,
 while seven subagents each burning 25 in their own do not.
 
-The shared *methodology* is still a skill: `skills/role_review/SKILL.md` holds the output
+The shared *methodology* is still a skill: `skills/role-review/SKILL.md` holds the output
 schema, severity scale, finding-ID convention, and context-budget protocol. Duplicating that
 across seven reviewing-role files would have been seven copies to drift apart. Roles load it;
 they do not restate it. `tracker` and `docs-sync` deliberately don't load it — they take
 actions, not findings, and have their own output schemas defined in their own bodies.
 
-### Reuse of `audit_repo` rather than duplication
+### Reuse of `audit-repo` rather than duplication
 
-`audit_repo` already scores six domains that map closely onto most of the reviewing roles
-(`sre` is the exception — its lens is deployment surface, which `audit_repo` doesn't scan, so
+`audit-repo` already scores six domains that map closely onto most of the reviewing roles
+(`sre` is the exception — its lens is deployment surface, which `audit-repo` doesn't scan, so
 it works primarily from CI config and git metadata instead). Rather than re-implement that
 analysis in six prompts, the orchestrator runs `run_audit.py` **once** and writes
 `audit_data.json` into the reviews directory; each role reads only its own domain slice as a
@@ -405,11 +405,11 @@ feature ships dormant and does nothing until a project flips the key.
 Reports are written to `<target>/.ai-reviews/`, and the command appends that path to the
 target's `.git/info/exclude` rather than its committed `.gitignore` — so reviews never dirty
 `git status` and never get committed by accident, without editing a tracked file. Nothing is
-ever written into `.ai/`, per the same boundary `customize_config` exists to enforce.
+ever written into `.ai/`, per the same boundary `customize-config` exists to enforce.
 
 ### The run manifest
 
-`.ai-reviews/manifest.json`, written by `skills/role_review/run_manifest.py`, exists because
+`.ai-reviews/manifest.json`, written by `skills/role-review/run_manifest.py`, exists because
 findings are pinned to a commit — every report is stamped `@ <short-sha>` and a `file:line`
 is only meaningful against the code that produced it — but nothing recorded which commit a
 given set of reports described. `--begin` opens a run for the current sha, archiving the
@@ -725,7 +725,7 @@ wrong.
 
 ### The decision: generate it, and fail the build on drift
 
-`skills/repo_tree/gen_tree.py` walks `git ls-files` and writes an annotated tree between
+`skills/repo-tree/gen_tree.py` walks `git ls-files` and writes an annotated tree between
 `BEGIN GENERATED TREE`/`END GENERATED TREE` HTML-comment markers in `docs/STRUCTURE.md`
 (full) and `README.md` (depth 1). `tests/test_structure_doc.py` regenerates and diffs; CI fails if either is stale.
 

@@ -206,7 +206,7 @@ Frontmatter is **exactly** `name` (kebab-case) and `description` — checked by
 `test_conventions.py`'s `TestSkills`. The description should be "pushy": specific enough that
 an assistant's own routing picks it for the right prompts (`test_descriptions_are_specific_enough_to_trigger`
 does a light heuristic check). Scripts/templates live alongside `SKILL.md` in the same
-folder. `skills/role_review/SKILL.md` is the one skill every reviewing agent loads — see §4.
+folder. `skills/role-review/SKILL.md` is the one skill every reviewing agent loads — see §4.
 
 ## 4. Commands (`commands/claude/*.md`)
 
@@ -235,7 +235,7 @@ Body shape (reviewing roles): H1 role name → 2–3 sentence second-person iden
 the line "Load the `role-review` skill first for the output schema, severity scale, and
 context budget…" → `## Context strategy` → `## What to look for` → `## Steps` → `## Rules`.
 No contractions, em dashes throughout, hard numeric caps stated as literals — matching
-`role_review/SKILL.md`'s own register.
+`role-review/SKILL.md`'s own register.
 
 ### The tool-grant matrix (the actual trust-boundary enforcement)
 
@@ -272,7 +272,7 @@ is the project's own). These rules are **project-wide**, not per-agent — Claud
 per-subagent permission scoping — so they also constrain the human's own session, a tradeoff
 stated plainly in `README.md` rather than hidden.
 
-## 6. `skills/role_review/run_manifest.py` — the run ledger
+## 6. `skills/role-review/run_manifest.py` — the run ledger
 
 Stdlib-only script, invoked from the *target* repo's context (`--project <path>`), writing
 `.ai-reviews/manifest.json`:
@@ -303,7 +303,7 @@ Three CLI verbs, composed by the commands in §4:
   code is exactly what `role-implement.md` step 3 branches on to refuse acting on a backlog
   pinned to an older commit.
 
-## 7. `skills/repo_tree/gen_tree.py` — the annotated tree
+## 7. `skills/repo-tree/gen_tree.py` — the annotated tree
 
 Implements HLD §8's documentation layer. Stdlib only, like every other script here, and
 standalone: `run_audit.py` invokes it as a **subprocess by path**, never an import, so the
@@ -345,7 +345,7 @@ neighbourhood — see DESIGN.md §4).
   `claude_agents` gating, `link_mode` both ways, the token-budget warning, and every `emit_*`
   port including the MCP-skip guard.
 - **`test_conventions.py`** — parses this repo's *real* `agents/claude/*.md`,
-  `skills/*/SKILL.md`, `commands/claude/*.md`, `skills/role_review/SKILL.md`, so it is the
+  `skills/*/SKILL.md`, `commands/claude/*.md`, `skills/role-review/SKILL.md`, so it is the
   live enforcement of everything in §5 above; a role added without updating the enumerations
   in `role-review/SKILL.md`, `role-review.md`, or `role.md` fails here.
 - **`test_run_manifest.py`** — drives `run_manifest.py` against a real temporary git repo

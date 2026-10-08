@@ -20,7 +20,7 @@ release process it doesn't have. This skill prepares the release; it does not pu
    derive the bump: any `!` or `BREAKING CHANGE:` footer → major; any `feat` → minor;
    otherwise → patch. If commits don't follow that convention, say so and ask for the bump
    type rather than guessing from prose.
-3. **Find the project's own gates**, the same way `role_review`'s roles do: read CI config
+3. **Find the project's own gates**, the same way `role-review`'s roles do: read CI config
    (`.github/workflows/`, `.gitlab-ci.yml`, …) for the real lint/test/build commands, falling
    back to what `README`/`CONTRIBUTING` document if there's no CI. Run them. **Stop and report
    if any fail — do not bump a version over a broken gate.**

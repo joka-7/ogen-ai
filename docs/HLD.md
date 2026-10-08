@@ -178,7 +178,7 @@ Bash fence on every other role.
 
 ## 7. Non-functional properties
 
-- **Stdlib-only.** `bin/ai-sync` and `skills/role_review/run_manifest.py` depend on nothing
+- **Stdlib-only.** `bin/ai-sync` and `skills/role-review/run_manifest.py` depend on nothing
   beyond the Python 3.11+ standard library (`tomllib`) — no install step for either.
 - **Idempotent by design.** Both `ai-sync` re-runs and `run_manifest.py --begin` at an
   unchanged commit are safe to repeat.
@@ -187,7 +187,7 @@ Bash fence on every other role.
   a silent trap `/role-implement` can walk into.
 - **Context-budget aware.** `AGENTS.md` loads every session, so its size is estimated and
   flagged (never hard-failed) past a configurable budget; reviewing roles work from a shared,
-  explicit context budget defined in `skills/role_review/SKILL.md` rather than reading a
+  explicit context budget defined in `skills/role-review/SKILL.md` rather than reading a
   target repo unbounded.
 - **Tested.** `tests/` is a stdlib `unittest` suite covering `ai-sync`'s generator behavior,
   `run_manifest.py`'s ledger logic, and the structural conventions (frontmatter shape, tool

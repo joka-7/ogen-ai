@@ -1,4 +1,4 @@
-"""Behavioral tests for skills/role_review/run_manifest.py."""
+"""Behavioral tests for skills/role-review/run_manifest.py."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCRIPT = REPO / "skills" / "role_review" / "run_manifest.py"
+SCRIPT = REPO / "skills" / "role-review" / "run_manifest.py"
 
 
 class ManifestHarness(unittest.TestCase):

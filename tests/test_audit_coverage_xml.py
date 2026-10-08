@@ -1,4 +1,4 @@
-"""Behavioral tests for the coverage.xml reader in skills/audit_repo/run_audit.py.
+"""Behavioral tests for the coverage.xml reader in skills/audit-repo/run_audit.py.
 
 The audited project is untrusted input, so this reader deliberately does not use an
 XML parser (see `_parse_coverage_xml`). These cases pin both halves of that contract:
@@ -17,8 +17,8 @@ REPO = Path(__file__).resolve().parent.parent
 
 
 def _load_run_audit():
-    """Import skills/audit_repo/run_audit.py as a module."""
-    path = REPO / "skills" / "audit_repo" / "run_audit.py"
+    """Import skills/audit-repo/run_audit.py as a module."""
+    path = REPO / "skills" / "audit-repo" / "run_audit.py"
     spec = importlib.util.spec_from_file_location("run_audit", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

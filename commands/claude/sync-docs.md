@@ -15,7 +15,7 @@ Give it the workdir path, repo name, and `<short-sha>`. It reads recent git hist
 **4. Persist.**
 Write the returned sync report verbatim to `<workdir>/.ai-reviews/docs-sync.md`, then:
 ```
-python .ai/skills/role_review/run_manifest.py --project <workdir> --record docs-sync=docs-sync.md
+python .ai/skills/role-review/run_manifest.py --project <workdir> --record docs-sync=docs-sync.md
 ```
 
 **5. Never commit or push.** That is `docs-sync`'s own rule and this command does not override it. Report the diffstat (`git diff --stat` in `<workdir>`) for the in-repo half, and which Confluence pages were touched for the other half.

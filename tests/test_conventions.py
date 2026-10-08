@@ -176,7 +176,7 @@ class TestToolGrants(unittest.TestCase):
 
 class TestSharedReviewContract(unittest.TestCase):
     def setUp(self) -> None:
-        self.skill = (SKILLS_DIR / "role_review" / "SKILL.md").read_text(encoding="utf-8")
+        self.skill = (SKILLS_DIR / "role-review" / "SKILL.md").read_text(encoding="utf-8")
 
     def test_reviewers_load_the_shared_contract_rather_than_restating_it(self) -> None:
         for name in REVIEWER_PREFIXES:
@@ -249,6 +249,12 @@ class TestSkills(unittest.TestCase):
             with self.subTest(skill=path.parent.name):
                 fields, _, _ = parse_frontmatter(path)
                 self.assertRegex(fields["name"], r"\A[a-z0-9]+(-[a-z0-9]+)*\Z")
+
+    def test_name_matches_directory(self) -> None:
+        for path in self.skill_files():
+            with self.subTest(skill=path.parent.name):
+                fields, _, _ = parse_frontmatter(path)
+                self.assertEqual(fields["name"], path.parent.name)
 
     def test_descriptions_are_specific_enough_to_trigger(self) -> None:
         for path in self.skill_files():
