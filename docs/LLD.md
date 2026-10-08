@@ -246,8 +246,8 @@ No contractions, em dashes throughout, hard numeric caps stated as literals — 
 | `qa` | sonnet | Read, Grep, Glob, Bash, Skill | `QA` |
 | `architect` | opus | Read, Grep, Glob, Bash, Skill | `ARC` |
 | `product` | sonnet | Read, Grep, Glob, Bash, Skill | `PRD` |
-| `engineering-manager` | sonnet | Read, Grep, Glob, Bash, Skill | `EM` |
-| `sre` | sonnet | Read, Grep, Glob, Bash, Skill (Bash fenced to git-metadata-only by body rule) | `SRE` |
+| `engineering-manager` | sonnet | Read, Grep, Glob, Skill — **no Bash** (reads `git_meta.txt`) | `EM` |
+| `sre` | sonnet | Read, Grep, Glob, Skill — **no Bash** (reads `git_meta.txt`) | `SRE` |
 | `senior-dev` | opus | Read, Grep, Glob, Bash, Skill | `SDR` |
 | `ciso` | opus | Read, Grep, Glob, Skill — **no Bash** | `SEC` |
 | `planner` | opus | Read, Grep, Glob, Skill — **no Bash** | n/a (aggregator, not a reviewer) |

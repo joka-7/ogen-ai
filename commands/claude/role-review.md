@@ -24,10 +24,12 @@ If a prior run exists at a different sha, this archives its reports to `.ai-revi
 ```
 python .ai/skills/audit-repo/run_audit.py --project <workdir> --output <workdir>/.ai-reviews/audit_data.json
 ```
+Then write the git facts for the shell-less roles: `python .ai/skills/role-review/run_manifest.py --project <workdir> --git-meta`.
+
 Once — not once per role. Every role reads its own domain slice from this file. If the script fails, continue anyway and tell the roles the file is absent; they degrade to unaided exploration.
 
 **4. Fan out the reviewers in parallel.**
-Launch `qa`, `architect`, `product`, `engineering-manager`, `sre`, `senior-dev`, and `ciso` **in a single message** so they run concurrently in isolated contexts. Sequential launches waste the whole design. Give each the same brief: the `<workdir>` absolute path, the repo name, `<short-sha>`, and the path to `audit_data.json`.
+Launch `qa`, `architect`, `product`, `engineering-manager`, `sre`, `senior-dev`, and `ciso` **in a single message** so they run concurrently in isolated contexts. Sequential launches waste the whole design. Give each the same brief: the `<workdir>` absolute path, the repo name, `<short-sha>`, the path to `audit_data.json`, and `.ai-reviews/git_meta.txt`.
 
 If $ARGUMENTS named a subset of roles, launch only those.
 

@@ -149,6 +149,16 @@ class TestCliValidation(ManifestHarness):
         self.assertNotEqual(result.returncode, 0)
 
 
+class TestGitMeta(ManifestHarness):
+    def test_git_meta_file_is_written_with_history(self) -> None:
+        self._commit("second")
+        result = self.run_manifest("--git-meta")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        text = (self.project / ".ai-reviews" / "git_meta.txt").read_text(encoding="utf-8")
+        self.assertIn("second", text)
+        self.assertIn("## contributors", text)
+
+
 class TestHostileManifest(ManifestHarness):
     def test_traversal_sha_in_manifest_cannot_escape_archive(self) -> None:
         reviews = self.project / ".ai-reviews"

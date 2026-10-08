@@ -161,20 +161,20 @@ flowchart TD
 
 **Trust boundary, enforced by tool grants, not instructions.** Withholding a tool is the
 only real enforcement in this layer — everything in an agent body is advisory. `ciso`,
-`planner`, and `tracker` hold no `Bash` at all; the reviewing roles hold no `Edit`/`Write`
+`planner`, `tracker`, `sre` and `engineering-manager` hold no `Bash` at all; the reviewing roles hold no `Edit`/`Write`
 and return a report for the invoking command to persist; only `developer` and `docs-sync`
 can write to the target repo, each scoped to a different domain (code vs.
 documentation-shaped content). `docs-sync`'s scope is a body rule, not a tool-grant
-guarantee — Claude Code cannot glob-scope `Edit`/`Write` — the same weaker category as
-`sre`'s fenced (git-metadata-only) `Bash`. See `docs/DESIGN.md` §10/§12 for the full
+guarantee — Claude Code cannot glob-scope `Edit`/`Write` — a weaker category than withheld tools. See `docs/DESIGN.md` §10/§12 for the full
 per-role reasoning and `adapters/claude-agent-permissions.json` for the `Bash` deny-rules
 that close the "Bash but read-only" gap a `tools:` list cannot express by itself.
 
 **External systems.** `tracker`/`docs-sync` are the only components in this repo that ever
 reach outside a target repo, and they do it exclusively through MCP tool grants
-(`mcp__atlassian__*`) — never credentialed `Bash` — so an untrusted target repo's content can
-never reach a credential through them, preserving the same isolation principle as the git-only
-Bash fence on every other role.
+(`mcp__atlassian__*`) — never credentialed `Bash` — so no credential is ever exposed as a string. That does **not**
+stop prompt-injected *use* of the authority those tools carry: untrusted report text can still
+steer a Jira or Confluence write. Hence the human-approval step before `tracker` acts, and
+the rule that `docs-sync` shows a diff before any external write.
 
 ## 7. Non-functional properties
 

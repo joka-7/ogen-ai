@@ -11,6 +11,8 @@ needs action in the consuming project.
   contained `local_tail`, known `link_mode`) and refuses writes that resolve outside the
   project.
 - `run_manifest.py` rejects non-hex archive ids and writes the manifest atomically.
+- `sre` and `engineering-manager` no longer hold Bash; `run_manifest.py --git-meta` writes
+  the git facts they read. `docs-sync` confirms before any Confluence update.
 - `qa` and `product` only execute target code when the target is an owned local path.
 
 ### Changed

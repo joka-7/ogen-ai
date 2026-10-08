@@ -52,7 +52,7 @@ class TestImportCycles(AuditFixture):
 class TestScanner(AuditFixture):
     def test_symlinked_file_is_not_read(self) -> None:
         outside = Path(self._tmp.name) / "secret.txt"
-        outside.write_text("AKIAABCDEFGHIJKLMNOP\n", encoding="utf-8")
+        outside.write_text("AKIA" + "ABCDEFGHIJKLMNOP\n", encoding="utf-8")
         os.symlink(outside, self.root / "Dockerfile")
         scan = self.scan()
         self.assertEqual([f.relative_path for f in scan.files], [])

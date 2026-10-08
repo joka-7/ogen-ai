@@ -104,10 +104,7 @@ The original four (scaffold template, token-budget check, Go/Rust/Swift fragment
 `release-checklist` + `port-module-to-ts`) are all shipped. Carried over from the
 role-agent layer (§10 in DESIGN.md), flagged rather than decided:
 
-1. **`sre`'s Bash grant** is currently fenced (git metadata only, explicit prohibition
-   list) rather than withheld outright like `ciso`'s. Revisit if a tighter guarantee is
-   wanted.
-2. **`/role-implement` never commits**, matching `developer`'s own rule — it leaves a diff
+1. **`/role-implement` never commits**, matching `developer`'s own rule — it leaves a diff
    for review. An opt-in commit flag (using the `conventional-commit` skill for the
    message) is a plausible addition, not yet built.
 

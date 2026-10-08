@@ -61,6 +61,7 @@ ogen-ai/
 ├── skills/                 # Portable Agent Skills (SKILL.md folders), wired whole into every target tool
 ├── tests/                  # Stdlib unittest suite — run before and after touching bin/, agents/,…
 ├── .gitignore              # Ignores Python caches, virtualenvs, .env files, audit output and .DS_Store
+├── .gitleaksignore         # Accepted gitleaks fingerprints (a fake key in an early test commit)
 ├── CHANGELOG.md            # Changelog
 ├── CLAUDE.md               # Working context for Claude Code sessions on ogen-ai itself (never generated)
 ├── LICENSE                 # MIT
