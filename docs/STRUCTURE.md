@@ -131,6 +131,7 @@ ogen-ai/
 │   ├── test_run_manifest.py               # Behavioral tests for skills/role-review/run_manifest.py.
 │   └── test_structure_doc.py              # Behavioral tests for skills/repo-tree/gen_tree.py, and a drift gate on…
 ├── .gitignore                             # Ignores Python caches, virtualenvs, .env files, audit output and .DS_Store
+├── CHANGELOG.md                           # Changelog
 ├── CLAUDE.md                              # Working context for Claude Code sessions on ogen-ai itself (never generated)
 ├── LICENSE                                # MIT
 ├── README.md                              # Start here: what this repo is, how the wiring works, how to set it up

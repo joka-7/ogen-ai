@@ -61,6 +61,7 @@ ogen-ai/
 ├── skills/                 # Portable Agent Skills (SKILL.md folders), wired whole into every target tool
 ├── tests/                  # Stdlib unittest suite — run before and after touching bin/, agents/,…
 ├── .gitignore              # Ignores Python caches, virtualenvs, .env files, audit output and .DS_Store
+├── CHANGELOG.md            # Changelog
 ├── CLAUDE.md               # Working context for Claude Code sessions on ogen-ai itself (never generated)
 ├── LICENSE                 # MIT
 ├── README.md               # Start here: what this repo is, how the wiring works, how to set it up
@@ -222,6 +223,10 @@ git submodule update --remote .ai
 git -C .ai log --stat ORIG_HEAD..HEAD   # review before executing anything from it
 python .ai/bin/ai-sync
 ```
+
+`python .ai/bin/ai-sync --check` exits 1 when generated output is stale (use it in CI after
+a submodule bump); `--clean` removes everything `ai-sync` placed. See `CHANGELOG.md` before
+bumping.
 
 ## Link mode vs copy mode
 

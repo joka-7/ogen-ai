@@ -926,7 +926,7 @@ class ScalabilityAnalyzer:
                         ))
 
         score -= min(40.0, 10.0 * deep_loops)
-        metrics = {
+        metrics: dict[str, Any] = {
             "deep_loop_functions": deep_loops,
             "generator_functions": generator_functions,
             "list_accumulating_functions": list_building_functions,

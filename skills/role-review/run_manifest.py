@@ -42,6 +42,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 REVIEWS_DIRNAME = ".ai-reviews"
 MANIFEST_NAME = "manifest.json"
@@ -83,7 +84,7 @@ def is_dirty(project: Path) -> bool | None:
     return bool(status.strip())
 
 
-def load_manifest(reviews: Path) -> dict:
+def load_manifest(reviews: Path) -> dict[str, Any]:
     path = reviews / MANIFEST_NAME
     if not path.exists():
         return {"schema": SCHEMA_VERSION, "repo": reviews.parent.name, "runs": []}
@@ -100,7 +101,7 @@ def load_manifest(reviews: Path) -> dict:
     return data
 
 
-def save_manifest(reviews: Path, manifest: dict) -> None:
+def save_manifest(reviews: Path, manifest: dict[str, Any]) -> None:
     reviews.mkdir(parents=True, exist_ok=True)
     final = reviews / MANIFEST_NAME
     tmp = reviews / f".{MANIFEST_NAME}.{os.getpid()}.tmp"
@@ -108,7 +109,7 @@ def save_manifest(reviews: Path, manifest: dict) -> None:
     os.replace(tmp, final)
 
 
-def latest_run(manifest: dict) -> dict | None:
+def latest_run(manifest: dict[str, Any]) -> dict[str, Any] | None:
     runs = manifest.get("runs", [])
     return runs[-1] if runs else None
 
