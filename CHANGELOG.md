@@ -26,6 +26,10 @@ needs action in the consuming project.
 - `role-review` findings carry a stable **Fingerprint**; the tracker's ticket marker uses it.
 
 ### Added
+- Roles `privacy` (PRV), `performance` (PRF), `frontend` (FE): reviewers with no Bash, opt-in
+  to `/role-review` by naming them; the default fan-out is unchanged.
+- Skills `debug-root-cause`, `dependency-upgrade`, `threat-model`, `pr-description`,
+  `db-migration-safety`. `port-module-to-ts` is now the language-generic `port-module`.
 - `ai-sync --check` (exit 1 when output is stale) and `ai-sync --clean`.
 - `[options] atlassian_server` to match the project's Atlassian MCP alias.
 - CI: `mypy --strict`, scaffold-template gates, Python 3.13.
