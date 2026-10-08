@@ -60,7 +60,7 @@ ogen-ai/
 ├── rules/                  # Rule fragments compiled into a project's AGENTS.md, per its manifest
 ├── skills/                 # Portable Agent Skills (SKILL.md folders), wired whole into every target tool
 ├── tests/                  # Stdlib unittest suite — run before and after touching bin/, agents/,…
-├── .gitignore              # Ignores __pycache__/, *.pyc, .DS_Store — nothing generated lives in this repo
+├── .gitignore              # Ignores Python caches, virtualenvs, .env files, audit output and .DS_Store
 ├── CLAUDE.md               # Working context for Claude Code sessions on ogen-ai itself (never generated)
 ├── LICENSE                 # MIT
 ├── README.md               # Start here: what this repo is, how the wiring works, how to set it up
@@ -215,10 +215,12 @@ Handy Makefile target for the parent repo:
 ai-sync: ; python .ai/bin/ai-sync
 ```
 
-Pulling rule updates later:
+Pulling rule updates later — fetch, review what changed, then run it:
 
 ```bash
-git submodule update --remote .ai && python .ai/bin/ai-sync
+git submodule update --remote .ai
+git -C .ai log --stat ORIG_HEAD..HEAD   # review before executing anything from it
+python .ai/bin/ai-sync
 ```
 
 ## Link mode vs copy mode
@@ -233,8 +235,9 @@ controls how it's placed:
 - `"copy"` — real files and directories are written into the project. Portable and
   container-safe (the config survives even if `.ai/` isn't checked out), Windows-friendly.
   Cost: re-run `ai-sync` after pulling rule updates, and copied dirs carry a `.ai-managed`
-  marker so re-runs refresh them safely. Hand-written files at a target path are never
-  clobbered without `--force`.
+  marker so re-runs refresh them safely. Hand-written files at a target path — including
+  `AGENTS.md` and generated command/agent ports — are never clobbered without `--force`;
+  generated files are tracked by hash in `.ai-sync-state.json`.
 
 On Linux with the submodule always initialized, `symlink` is simplest. Use `copy` for
 containerized/CI/cross-platform agent runs.
@@ -267,7 +270,8 @@ contributing to, or your own repo where you'd rather not vendor anything in perm
    the manifest) adds every path that run wrote — `AGENTS.md`, `CLAUDE.md`/`GEMINI.md`,
    `.claude/`, `.cursor/`, etc. — plus `ai-config.toml` and the `local_tail` file, to
    **`.git/info/exclude`**, never the project's own tracked `.gitignore`. That means: never
-   shown by `git status`, never picked up by `git add -A`, and never reachable by a push —
+   shown by `git status` and never picked up by `git add -A`. This is status-noise
+   reduction, not a security boundary: a path that is already tracked stays tracked. It is
    the same mechanism `/role-review` already uses for `.ai-reviews/`, applied to everything
    `ai-sync` itself manages.
 

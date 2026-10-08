@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -45,6 +47,7 @@ REVIEWS_DIRNAME = ".ai-reviews"
 MANIFEST_NAME = "manifest.json"
 ARCHIVE_DIRNAME = "archive"
 SCHEMA_VERSION = 1
+SAFE_SHA = re.compile(r"[0-9a-f]{4,64}|unknown")
 
 # Everything a run produces. manifest.json and archive/ are excluded: the ledger
 # outlives the runs it describes, and archived reports are already filed.
@@ -90,15 +93,19 @@ def load_manifest(reviews: Path) -> dict:
         # A corrupt ledger must not block a review. Start a fresh one and say so.
         print(f"  ! {path} is unreadable — starting a new manifest", file=sys.stderr)
         return {"schema": SCHEMA_VERSION, "repo": reviews.parent.name, "runs": []}
-    data.setdefault("runs", [])
+    if not isinstance(data, dict) or not isinstance(data.get("runs", []), list):
+        print(f"  ! {path} has an unexpected shape — starting a new manifest", file=sys.stderr)
+        return {"schema": SCHEMA_VERSION, "repo": reviews.parent.name, "runs": []}
+    data["runs"] = [r for r in data["runs"] if isinstance(r, dict)]
     return data
 
 
 def save_manifest(reviews: Path, manifest: dict) -> None:
     reviews.mkdir(parents=True, exist_ok=True)
-    (reviews / MANIFEST_NAME).write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
+    final = reviews / MANIFEST_NAME
+    tmp = reviews / f".{MANIFEST_NAME}.{os.getpid()}.tmp"
+    tmp.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, final)
 
 
 def latest_run(manifest: dict) -> dict | None:
@@ -108,6 +115,9 @@ def latest_run(manifest: dict) -> dict | None:
 
 def archive_run(reviews: Path, sha: str) -> list[str]:
     """Move the current run's artifacts under archive/<sha>/. Returns what moved."""
+    if not SAFE_SHA.fullmatch(sha):
+        print(f"  ! refusing to archive under unsafe run id {sha!r}", file=sys.stderr)
+        return []
     destination = reviews / ARCHIVE_DIRNAME / sha
     destination.mkdir(parents=True, exist_ok=True)
     moved: list[str] = []
