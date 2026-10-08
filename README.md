@@ -30,12 +30,12 @@ Add this repo as a submodule to any project and `ai-sync` gives that project, in
 - **Portable Agent Skills and slash commands**, wired into every target tool's own
   convention: `repo-tree` (generate/verify a repo's structure docs), `audit-repo` (scan a
   repo for what's missing or stale), `write-design-doc`, `scaffold-python-service`,
-  `port-module-to-ts`, `release-checklist`, `conventional-commit`, `customize-config`, and
+  `port-module`, `release-checklist`, `conventional-commit`, `customize-config`, and
   `role-review` — plus commands like `/review`, `/test`, `/docs-bootstrap`, and the
   `/role-*` family below.
-- **An opt-in team of 11 role subagents** (`architect`, `qa`, `product`,
-  `engineering-manager`, `sre`, `senior-dev`, `ciso`, `planner`, `developer`, `tracker`,
-  `docs-sync`) that can review any repo from seven professional angles in parallel, converge
+- **An opt-in team of 14 role subagents** (`architect`, `qa`, `product`,
+  `engineering-manager`, `sre`, `senior-dev`, `ciso`, `privacy`, `performance`, `frontend`, `planner`, `developer`, `tracker`,
+  `docs-sync`) that can review any repo from seven default professional angles in parallel (plus three opt-in), converge
   on one prioritized backlog, implement the approved items, and sync status to Jira and
   Confluence — see [Role agents](#role-agents) below for the full workflow and its trust
   boundaries.

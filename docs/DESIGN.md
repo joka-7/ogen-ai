@@ -119,8 +119,8 @@ specifics into the submodule.
 - `rules/` — the fragments compiled into a project's `AGENTS.md`. `base.md` is always
   included; languages, frameworks, and practices are opt-in per manifest, so a Python repo
   never carries Kotlin rules into the context window.
-- `agents/claude/` — the eleven role subagents (§10, §12), plus `skills/role-review/SKILL.md`,
-  the output contract the seven reviewing roles share.
+- `agents/claude/` — the fourteen role subagents (§10, §12), plus `skills/role-review/SKILL.md`,
+  the output contract the ten reviewing roles share (seven in the default fan-out, three opt-in).
 - `skills/` — portable skills. Three ship a stdlib-only script alongside `SKILL.md`, on the
   same split: the script collects what is mechanically derivable, the agent does the
   judgment pass.
@@ -259,7 +259,7 @@ The original four are all shipped:
    version-bumped, tagged commit — deriving the bump from Conventional Commits since that
    tag, running whatever gate commands its CI config defines, and refusing to bump over a
    failing gate — then stops; it never pushes the tag or publishes, per `rules/base.md`'s
-   rule on large or irreversible actions. `port-module-to-ts` ports a JS/Python module's
+   rule on large or irreversible actions. `port-module` ports a JS/Python module's
    behavior into TypeScript against `rules/languages/typescript.md`, explicitly as a port
    (behavior parity, no opportunistic fixes) rather than a rewrite.
 

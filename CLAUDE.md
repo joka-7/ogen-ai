@@ -60,7 +60,7 @@ section is only what each directory is *for*:
 - `rules/` — fragments compiled into a project's `AGENTS.md`. One concern per fragment.
 - `skills/<name>/SKILL.md` — portable Agent Skills (frontmatter `name` + `description`).
 - `commands/claude/*.md` — Claude slash commands (least portable; Claude-primary).
-- `agents/claude/*.md` — eleven role subagents. Claude-only, opt-in via
+- `agents/claude/*.md` — fourteen role subagents. Claude-only, opt-in via
   `[options] claude_agents`. **Tool grants are the enforcement** — `ciso`/`planner`/`tracker`
   get no Bash, `developer` and `docs-sync` get Edit/Write, `tracker`/`docs-sync` reach
   Jira/Confluence via Atlassian MCP tools.
@@ -101,7 +101,7 @@ without `--force`. Both are covered by `tests/test_ai_sync.py` — keep them cov
 ## Open next steps
 
 The original four (scaffold template, token-budget check, Go/Rust/Swift fragments,
-`release-checklist` + `port-module-to-ts`) are all shipped. Carried over from the
+`release-checklist` + `port-module`) are all shipped. Carried over from the
 role-agent layer (§10 in DESIGN.md), flagged rather than decided:
 
 1. **`/role-implement` never commits**, matching `developer`'s own rule — it leaves a diff

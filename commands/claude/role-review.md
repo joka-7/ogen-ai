@@ -31,7 +31,7 @@ Once — not once per role. Every role reads its own domain slice from this file
 **4. Fan out the reviewers in parallel.**
 Launch `qa`, `architect`, `product`, `engineering-manager`, `sre`, `senior-dev`, and `ciso` **in a single message** so they run concurrently in isolated contexts. Sequential launches waste the whole design. Give each the same brief: the `<workdir>` absolute path, the repo name, `<short-sha>`, the path to `audit_data.json`, and `.ai-reviews/git_meta.txt`.
 
-If $ARGUMENTS named a subset of roles, launch only those.
+The default fan-out is those seven. `privacy`, `performance` and `frontend` are opt-in: launch them only when $ARGUMENTS names them (they cost extra tokens and `frontend` has nothing to review in a backend repo). If $ARGUMENTS named a subset of roles, launch only those.
 
 **5. Persist each report.**
 The reviewers have no write access by design — they return their report as their final message. Write each verbatim to `<workdir>/.ai-reviews/<role>.md`. Do not edit, summarize, or reformat them on the way to disk; they are the evidence record the next step and the human both depend on. Record each as it lands:
