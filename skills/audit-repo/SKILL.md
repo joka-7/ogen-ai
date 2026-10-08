@@ -16,14 +16,14 @@ is genuinely decoupled. That second pass is yours.
 
 ## Steps
 
-1. Run the collector: `python .ai/skills/audit_repo/run_audit.py --project <path> --output audit_data.json`
+1. Run the collector: `python .ai/skills/audit-repo/run_audit.py --project <path> --output audit_data.json`
    (defaults: `--project .`, `--output audit_data.json`; see `--help` for `--max-line-length`
    and `--max-file-bytes`). It scans the tree, detects the tech stack, and writes both a JSON
    file and a short score summary to stdout.
 2. Load `audit_data.json`. Each domain has a `score`, a `confidence` (`high`/`medium`/`low`),
    `findings` (each with a `file`/`line` when available), and raw `metrics`. There are also
    two report-level fields sourced from the project's own `ai-project-config.toml`, if one
-   exists (scaffolded by the sibling `customize_config` skill — see its SKILL.md; don't
+   exists (scaffolded by the sibling `customize-config` skill — see its SKILL.md; don't
    scaffold or edit that file yourself from here):
    - `domain_weights` — the resolved weight per domain (default `1.0`) already baked into
      `overall_score` as a renormalized weighted mean. Don't re-average the six domain scores
@@ -76,7 +76,7 @@ is genuinely decoupled. That second pass is yours.
     missing map: a wrong directory map actively misleads. `/docs-bootstrap` or the
     `repo-tree` skill regenerates it.
   - `false` — verified current by the generator.
-  - `null` — **could not be checked** (the `repo_tree` skill isn't reachable from this
+  - `null` — **could not be checked** (the `repo-tree` skill isn't reachable from this
     project), which is not the same as "current". Say so in the report rather than
     scoring it as a pass.
 - **Security** — hardcoded secrets, proper permission management (least privilege, no

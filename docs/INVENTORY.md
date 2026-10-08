@@ -51,14 +51,14 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 | Skill | Purpose |
 |---|---|
 | `add-logging` | Add/fix structured logging in code using the language's idiomatic logger, per the language rules |
-| `audit_repo` | Score a target repo 0–100 across six domains; writes `AUDIT_REPORT.md` |
+| `audit-repo` | Score a target repo 0–100 across six domains; writes `AUDIT_REPORT.md` |
 | `conventional-commit` | Write a Conventional Commits message from the staged diff |
-| `customize_config` | Scaffold `ai-project-config.toml` for project-local rule/weight overrides, outside `.ai/` |
+| `customize-config` | Scaffold `ai-project-config.toml` for project-local rule/weight overrides, outside `.ai/` |
 | `lesson-capture` | Turn a correction into a written rule (in `local_tail`, the project's own `AGENTS.md`/`CLAUDE.md`, or `ai-project-config.toml`) instead of only this session's memory |
 | `port-module-to-ts` | Port a JS/Python module's behavior into TypeScript against the TS rules |
 | `release-checklist` | Walk a repo from its last tag to a version-bumped, tagged commit; never pushes |
-| `repo_tree` | Generate/refresh the annotated file tree in `docs/STRUCTURE.md` + `README.md`, and `--check` it for drift |
-| `role_review` | Shared output schema, severity scale, and context-budget contract the role agents load |
+| `repo-tree` | Generate/refresh the annotated file tree in `docs/STRUCTURE.md` + `README.md`, and `--check` it for drift |
+| `role-review` | Shared output schema, severity scale, and context-budget contract the role agents load |
 | `scaffold-python-service` | Scaffold a new Python service — FastAPI + strict-mypy baseline, gate-verified |
 | `write-design-doc` | Write HLD.md/LLD.md — either documenting an existing repo as-built, or proposing a new feature's design, against the HLD/LLD checklist |
 

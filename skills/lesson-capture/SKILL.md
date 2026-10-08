@@ -26,7 +26,7 @@ on the model to remember.
      get read again.
    - The correction is a rule/weight override rather than new prose (e.g. "always use tabs
      here", "skip the architecture checklist for this repo") and the project has `.ai/` →
-     use the `customize_config` skill to scaffold or edit `ai-project-config.toml` instead
+     use the `customize-config` skill to scaffold or edit `ai-project-config.toml` instead
      of writing free text.
 3. **Check for an existing rule covering the same ground first** (grep the target file for
    the topic). If one exists, tighten or correct it in place — don't append a second, nearly

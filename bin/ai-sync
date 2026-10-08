@@ -5,6 +5,8 @@ Run from the project root (where ai-config.toml lives):
 
     python .ai/bin/ai-sync                # generate AGENTS.md + wire up the configured tools
     python .ai/bin/ai-sync --dry-run      # show what would happen, change nothing
+    python .ai/bin/ai-sync --check        # exit 1 if generated output is stale (for CI)
+    python .ai/bin/ai-sync --clean        # remove everything ai-sync placed
     python .ai/bin/ai-sync --force        # overwrite real (non-symlink) files at target paths
     python .ai/bin/ai-sync --local-only   # as above, but exclude everything via .git/info/exclude
 
@@ -51,6 +53,7 @@ import re
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 try:
     import tomllib  # py3.11+
@@ -101,6 +104,7 @@ class Reporter:
         self.project_root: Path | None = None
         self.force = False
         self.owned: dict[str, str] = {}
+        self.pending: list[str] = []
         # Every path act() is ever called with — the single choke point every
         # write/symlink/copy in this module already goes through, so it doubles
         # as a free record of "everything this run touched" for local_only mode
@@ -111,6 +115,8 @@ class Reporter:
         tag = "would " if self.dry else ""
         print(f"  {tag}{verb}: {path}")
         self.written.append(path)
+        if not verb.startswith("ok"):
+            self.pending.append(f"{verb}: {path}")
 
     def warn(self, msg: str) -> None:
         print(f"  ! {msg}", file=sys.stderr)
@@ -134,7 +140,7 @@ class Reporter:
         _atomic_write(state, json.dumps({"files": self.owned}, indent=2, sort_keys=True) + "\n")
 
 
-def load_manifest(project_root: Path) -> dict:
+def load_manifest(project_root: Path) -> dict[str, Any]:
     cfg = project_root / "ai-config.toml"
     if not cfg.exists():
         sys.exit(
@@ -150,7 +156,7 @@ def load_manifest(project_root: Path) -> dict:
     return m
 
 
-def validate_manifest(m: dict, cfg: Path) -> None:
+def validate_manifest(m: dict[str, Any], cfg: Path) -> None:
     """Fail before writing anything when the manifest has unsafe or mistyped values."""
     problems: list[str] = []
     stack = m.get("stack", {})
@@ -165,6 +171,9 @@ def validate_manifest(m: dict, cfg: Path) -> None:
     targets = m.get("tools", {}).get("targets", [])
     if not isinstance(targets, list) or not all(isinstance(t, str) for t in targets):
         problems.append(f"[tools].targets must be a list of strings, got {targets!r}")
+    server = m.get("options", {}).get("atlassian_server", "atlassian")
+    if not isinstance(server, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", server):
+        problems.append(f"[options].atlassian_server must be a simple server alias, got {server!r}")
     tail = m.get("options", {}).get("local_tail", "ai-config.local.md")
     if (not isinstance(tail, str) or not tail or Path(tail).is_absolute()
             or ".." in Path(tail).parts):
@@ -181,7 +190,7 @@ def read_fragment(submodule: Path, kind: str, name: str, rep: Reporter) -> str |
     return frag.read_text(encoding="utf-8").rstrip() + "\n"
 
 
-def build_agents_md(submodule: Path, project_root: Path, m: dict, rep: Reporter) -> str:
+def build_agents_md(submodule: Path, project_root: Path, m: dict[str, Any], rep: Reporter) -> str:
     stack = m.get("stack", {})
     opts = m.get("options", {})
     parts: list[str] = []
@@ -208,7 +217,7 @@ def build_agents_md(submodule: Path, project_root: Path, m: dict, rep: Reporter)
     return header + body
 
 
-def check_token_budget(agents_content: str, m: dict, rep: Reporter) -> None:
+def check_token_budget(agents_content: str, m: dict[str, Any], rep: Reporter) -> None:
     """Warn when the assembled AGENTS.md crosses [options].token_budget.
 
     A rough estimate is deliberate: this is a visibility check, not a hard gate, so
@@ -363,7 +372,7 @@ def place_tree(src: Path, dest: Path, rep: Reporter, force: bool) -> None:
         )
 
 
-def emit_cursor_mdc(submodule: Path, project_root: Path, m: dict, rep: Reporter,
+def emit_cursor_mdc(submodule: Path, project_root: Path, m: dict[str, Any], rep: Reporter,
                     force: bool) -> None:
     tmpl = (submodule / "adapters" / "cursor-rule.mdc.tmpl").read_text(encoding="utf-8")
     rules_dir = project_root / ".cursor" / "rules"
@@ -726,18 +735,39 @@ def emit_copilot_agents(submodule: Path, project_root: Path, rep: Reporter) -> N
         write_file(dest_dir / f"{src.stem}.agent.md", frontmatter + "\n" + body.strip() + "\n", rep)
 
 
-def wire_tools(submodule: Path, project_root: Path, m: dict, agents_path: Path,
+def emit_claude_agents_aliased(submodule: Path, project_root: Path, server: str,
+                               rep: Reporter) -> None:
+    """Write Claude agents with the Atlassian MCP alias replaced by the project's own.
+
+    The shared agents hard-code `mcp__atlassian__*`; a project that connected the
+    server under another name would otherwise get agents with no working Jira tools.
+    """
+    dest_dir = project_root / ".claude" / "agents"
+    for src in sorted((submodule / "agents" / "claude").glob("*.md")):
+        text = src.read_text(encoding="utf-8").replace("mcp__atlassian__", f"mcp__{server}__")
+        write_file(dest_dir / src.name, text, rep)
+
+
+def wire_tools(submodule: Path, project_root: Path, m: dict[str, Any], agents_path: Path,
                rep: Reporter, force: bool) -> None:
     targets = set(m.get("tools", {}).get("targets", []))
     opts = m.get("options", {})
     mode = opts.get("link_mode", "symlink")
     if mode not in ("symlink", "copy"):
-        rep.warn(f"unknown link_mode '{mode}' — falling back to symlink")
-        mode = "symlink"
+        sys.exit(f"[options].link_mode must be \"symlink\" or \"copy\", got {mode!r}")
 
     def place(target: Path, dest: Path) -> None:
         """Wire dest to target, honoring link_mode. Copy mode survives sandboxes
         that lack the initialized submodule and works on Windows."""
+        if (target.is_dir() and dest.is_dir() and not dest.is_symlink()
+                and not (dest / MANAGED_MARKER).exists()):
+            # The project already has its own directory here: add the shared entries
+            # one by one beside its own instead of skipping or replacing the lot.
+            for child in sorted(target.iterdir()):
+                if child.name in ("__pycache__", ".DS_Store") or child.suffix == ".pyc":
+                    continue
+                place(child, dest / child.name)
+            return
         if mode == "symlink":
             rel_symlink(target, dest, rep, force)
         elif target.is_dir():
@@ -752,7 +782,11 @@ def wire_tools(submodule: Path, project_root: Path, m: dict, agents_path: Path,
         # Role subagents are opt-in: they're opinionated and not every project wants them.
         # Note .claude/agents (Claude subagents) is unrelated to .agents/skills (Gemini) below.
         if opts.get("claude_agents", False) and (submodule / "agents" / "claude").exists():
-            place(submodule / "agents" / "claude", project_root / ".claude" / "agents")
+            server = opts.get("atlassian_server", "atlassian")
+            if server != "atlassian":
+                emit_claude_agents_aliased(submodule, project_root, server, rep)
+            else:
+                place(submodule / "agents" / "claude", project_root / ".claude" / "agents")
         if (submodule / "commands" / "claude").exists():
             place(submodule / "commands" / "claude", project_root / ".claude" / "commands")
 
@@ -854,7 +888,7 @@ def _git_exclude_path(project_root: Path) -> Path | None:
     return None
 
 
-def apply_local_only(project_root: Path, manifest: dict, rep: Reporter) -> None:
+def apply_local_only(project_root: Path, manifest: dict[str, Any], rep: Reporter) -> None:
     """Add every path this run wrote to .git/info/exclude, so none of it can be pushed.
 
     Reads what to exclude from `rep.written` — the same record every write/symlink/
@@ -922,6 +956,70 @@ def apply_local_only(project_root: Path, manifest: dict, rep: Reporter) -> None:
     rep.act(f"excluded {len(entries)} path(s) (local-only)", exclude_path)
 
 
+def clean_project(project_root: Path, submodule: Path, dry: bool) -> int:
+    """Remove what ai-sync placed: links into the submodule, managed copies, owned files."""
+    sub = submodule.resolve()
+    removed: list[Path] = []
+
+    def points_into_submodule(p: Path) -> bool:
+        resolved = p.resolve()
+        if resolved == (project_root / "AGENTS.md").resolve():
+            return True
+        try:
+            resolved.relative_to(sub)
+            return True
+        except ValueError:
+            return False
+
+    candidates = ["CLAUDE.md", "GEMINI.md", ".claude", ".agents", ".github", ".cursor",
+                  ".codex", ".windsurf", ".gemini"]
+    for name in candidates:
+        top = project_root / name
+        if top.is_symlink():
+            if points_into_submodule(top):
+                removed.append(top)
+            continue
+        if not top.is_dir():
+            continue
+        for dirpath, dirnames, filenames in os.walk(top):
+            here = Path(dirpath)
+            for entry in list(dirnames) + filenames:
+                child = here / entry
+                if child.is_symlink() and points_into_submodule(child):
+                    removed.append(child)
+                    if entry in dirnames:
+                        dirnames.remove(entry)
+            for entry in list(dirnames):
+                if (here / entry / MANAGED_MARKER).exists():
+                    removed.append(here / entry)
+                    dirnames.remove(entry)
+
+    rep = Reporter(dry)
+    rep.configure(project_root, False)
+    for key, digest in rep.owned.items():
+        path = project_root / key
+        if path.is_file() and not path.is_symlink() and (
+                _digest(path.read_text(encoding="utf-8", errors="ignore")) == digest):
+            removed.append(path)
+    agents = project_root / "AGENTS.md"
+    if agents.is_file() and not agents.is_symlink() and _ours_file(agents):
+        removed.append(agents)
+    state = project_root / STATE_FILENAME
+    if state.exists():
+        removed.append(state)
+
+    for path in dict.fromkeys(removed):
+        print(f"  {'would remove' if dry else 'remove'}: {path}")
+        if dry:
+            continue
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+        else:
+            shutil.rmtree(path)
+    print("done." if not dry else "dry-run complete (nothing changed).")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Assemble AI-assistant config from the .ai submodule.")
     ap.add_argument("--project", type=Path, default=Path.cwd(),
@@ -931,11 +1029,18 @@ def main() -> int:
     ap.add_argument("--local-only", action="store_true",
                     help="Exclude everything this run writes via .git/info/exclude — "
                          "never staged, committed, or pushed. Same as [options] local_only.")
+    ap.add_argument("--check", action="store_true",
+                    help="Exit 1 if generated output is missing or out of date; change nothing.")
+    ap.add_argument("--clean", action="store_true",
+                    help="Remove the links, copies and generated files ai-sync placed.")
     args = ap.parse_args()
 
     project_root = args.project.resolve()
     submodule = Path(__file__).resolve().parent.parent  # .../.ai
-    rep = Reporter(args.dry_run)
+    if args.clean:
+        return clean_project(project_root, submodule, args.dry_run)
+
+    rep = Reporter(args.dry_run or args.check)
     rep.configure(project_root, args.force)
 
     m = load_manifest(project_root)
@@ -948,6 +1053,15 @@ def main() -> int:
     check_token_budget(agents_content, m, rep)
     wire_tools(submodule, project_root, m, agents_path, rep, args.force)
     rep.save_state()
+
+    if args.check:
+        if rep.pending:
+            print("ai-sync --check: out of date:", file=sys.stderr)
+            for item in rep.pending:
+                print(f"  {item}", file=sys.stderr)
+            return 1
+        print("ai-sync --check: up to date.")
+        return 0
 
     local_only = args.local_only or bool(m.get("options", {}).get("local_only", False))
     if local_only:

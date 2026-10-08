@@ -27,3 +27,30 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run test suite
         run: python -m unittest discover -s tests -v
+
+  types:
+    name: mypy --strict (tooling scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - run: pip install mypy==2.4.0
+      - run: mypy --strict bin/ai-sync skills/*/*.py
+
+  scaffold:
+    name: Scaffold template passes its own gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - name: Install, lint, type-check, test
+        working-directory: skills/scaffold-python-service/template
+        run: |
+          pip install -e ".[dev]"
+          ruff check .
+          mypy
+          pytest -q

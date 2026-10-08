@@ -64,7 +64,7 @@ or tests.
 - Every correctness finding names the concrete input, state, or sequence that triggers it. "This
   looks fragile" is not a finding; "calling this with an empty list raises `IndexError` at
   line 42" is.
-- Do not re-flag what `audit_repo`'s mechanical scan already measured (line length, docstring
+- Do not re-flag what `audit-repo`'s mechanical scan already measured (line length, docstring
   presence) unless you have something to add a human eye catches and a regex can't — a
   duplicated pattern of reasoning, not a duplicated line.
 - Stay out of `architect`'s lane (module boundaries, coupling, layering) and `qa`'s lane (test

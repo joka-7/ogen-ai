@@ -1,4 +1,4 @@
-"""Behavioral tests for skills/repo_tree/gen_tree.py, and a drift gate on docs/STRUCTURE.md.
+"""Behavioral tests for skills/repo-tree/gen_tree.py, and a drift gate on docs/STRUCTURE.md.
 
 The drift gate is the reason this skill exists. `docs/INVENTORY.md` states plainly
 that it is hand-maintained and unchecked, and this repo previously restated its own
@@ -21,7 +21,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCRIPT = REPO / "skills" / "repo_tree" / "gen_tree.py"
+SCRIPT = REPO / "skills" / "repo-tree" / "gen_tree.py"
 
 MARKERS = "<!-- BEGIN GENERATED TREE -->\n<!-- END GENERATED TREE -->\n"
 
@@ -53,7 +53,7 @@ class TestRepoIsCurrent(unittest.TestCase):
         self.assertEqual(
             result.returncode, 0,
             "docs/STRUCTURE.md (or another marked file) is stale. Regenerate:\n"
-            "  python skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md\n"
+            "  python skills/repo-tree/gen_tree.py --project . --output docs/STRUCTURE.md\n"
             f"{result.stdout}{result.stderr}",
         )
 

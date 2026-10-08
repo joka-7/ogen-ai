@@ -47,6 +47,7 @@ import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 MARKER_BEGIN_RE = re.compile(r"<!-- BEGIN GENERATED TREE(?: \(([^)]*)\))? -->")
 MARKER_END = "<!-- END GENERATED TREE -->"
@@ -75,7 +76,7 @@ MAX_FILE_BYTES = 400_000
 DEFAULT_STRUCTURE_HEADER = """# Repository structure
 
 Every file in this repo and what is inside it. The tree below is **generated** —
-run `python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md`
+run `python .ai/skills/repo-tree/gen_tree.py --project . --output docs/STRUCTURE.md`
 to refresh it, and never edit between the markers by hand.
 
 <!-- BEGIN GENERATED TREE -->
@@ -268,9 +269,9 @@ def _read_text(path: Path) -> str:
 # Tree rendering
 # ---------------------------------------------------------------------------
 
-def build_index(paths: list[str]) -> dict:
+def build_index(paths: list[str]) -> dict[str, Any]:
     """Fold flat relative paths into nested dicts; a file maps to an empty dict."""
-    root: dict = {}
+    root: dict[str, Any] = {}
     for rel in paths:
         node = root
         for part in rel.split("/"):
@@ -286,12 +287,12 @@ class TreeRenderer:
     max_depth: int | None
     max_entries: int | None
 
-    def rows(self, index: dict) -> list[tuple[str, str]]:
+    def rows(self, index: dict[str, Any]) -> list[tuple[str, str]]:
         collected: list[tuple[str, str]] = []
         self._walk(index, prefix="", rel="", depth=1, out=collected)
         return collected
 
-    def _walk(self, node: dict, prefix: str, rel: str, depth: int,
+    def _walk(self, node: dict[str, Any], prefix: str, rel: str, depth: int,
               out: list[tuple[str, str]]) -> None:
         dirs = sorted(k for k, v in node.items() if v)
         files = sorted(k for k, v in node.items() if not v)
@@ -462,7 +463,7 @@ def run_check(root: Path) -> int:
     if stale:
         names = ", ".join(p.relative_to(root).as_posix() for p in stale)
         print(f"\nstale generated tree in: {names}", file=sys.stderr)
-        print("refresh with: python .ai/skills/repo_tree/gen_tree.py "
+        print("refresh with: python .ai/skills/repo-tree/gen_tree.py "
               "--project . --output <file>", file=sys.stderr)
         return 1
 

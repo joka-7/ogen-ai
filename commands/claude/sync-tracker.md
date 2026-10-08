@@ -15,7 +15,7 @@ Give it the workdir path, repo name, and `<short-sha>`. It reads `BACKLOG.md`, `
 **4. Persist.**
 Write the returned sync report verbatim to `<workdir>/.ai-reviews/tracker.md`, then:
 ```
-python .ai/skills/role_review/run_manifest.py --project <workdir> --record tracker=tracker.md
+python .ai/skills/role-review/run_manifest.py --project <workdir> --record tracker=tracker.md
 ```
 
 **5. Report.**

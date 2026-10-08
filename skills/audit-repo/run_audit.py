@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_audit.py — collect objective repository-health signals for the audit_repo skill.
+"""run_audit.py — collect objective repository-health signals for the audit-repo skill.
 
 Algorithm overview
 ------------------
@@ -20,7 +20,7 @@ Algorithm overview
    ``AuditReport``. The overall score is a weighted mean of the six domain
    scores, renormalized so it stays 0-100 regardless of the weights used.
 4. If the audited project has its own ``ai-project-config.toml`` (scaffolded
-   by the sibling ``customize_config`` skill), ``ProjectOverrides.load``
+   by the sibling ``customize-config`` skill), ``ProjectOverrides.load``
    reads its ``[audit.weights]`` table to bias that mean toward the domains
    the project cares about most, and passes its ``[rules.custom]``
    conventions through into the report untouched, for the auditing agent to
@@ -220,7 +220,7 @@ class ProjectOverrides:
     """Project-local overrides loaded from ``ai-project-config.toml``, if present.
 
     Deliberately self-contained rather than imported from the sibling
-    ``customize_config`` skill's ``init_config.py``: ``ai-sync`` can place
+    ``customize-config`` skill's ``init_config.py``: ``ai-sync`` can place
     ``skills/`` in either symlink or copy mode, and a skill script should
     never assume where a *different* skill's files end up on disk. The two
     parsers are intentionally similar, not shared.
@@ -303,6 +303,9 @@ class RepoScanner:
             for filename in filenames:
                 path = Path(dirpath) / filename
                 relative = str(path.relative_to(root))
+                if path.is_symlink():
+                    skipped.append(f"{relative} (symlink, not followed)")
+                    continue
                 extension = path.suffix
                 language = LANGUAGE_EXTENSIONS.get(extension)
                 is_config = filename in CONFIG_FILENAMES
@@ -497,17 +500,19 @@ class ArchitectureAnalyzer:
     def _module_name(relative_path: str) -> str:
         if not relative_path.endswith(".py"):
             return relative_path
-        return relative_path[:-3].replace("/", ".")
+        name = relative_path[:-3].replace("/", ".")
+        return name[: -len(".__init__")] if name.endswith(".__init__") else name
 
     def _find_python_import_cycles(self, scan: ProjectScan) -> list[list[str]]:
         """Best-effort cycle detection over intra-repo Python imports.
 
         Algorithm: build a directed graph where an edge A -> B means module A
-        imports something whose dotted path is a suffix/prefix match of
-        module B's name (exact resolution isn't attempted — this is a
-        heuristic proxy), then run iterative DFS with a recursion stack to
-        find back-edges. Approximate by design; flagged cycles should be
-        verified by reading the actual imports.
+        imports module B, matched on whole dotted-name components (so a
+        ``src/`` layout prefix is tolerated but ``os`` never matches
+        ``pkg.zzz_os``). ``from pkg import name`` links to ``pkg.name`` when
+        that submodule exists. Then DFS with a recursion stack finds
+        back-edges. Flagged cycles should still be verified by reading the
+        actual imports.
         """
         modules = {self._module_name(rel): rel for rel in scan.python_modules}
         graph: dict[str, set[str]] = {name: set() for name in modules}
@@ -515,13 +520,17 @@ class ArchitectureAnalyzer:
         for rel, tree in scan.python_modules.items():
             name = self._module_name(rel)
             for node in ast.walk(tree):
-                imported: str | None = None
                 if isinstance(node, ast.Import):
                     for alias in node.names:
-                        imported = alias.name
-                        self._add_edge_if_match(graph, name, imported, modules)
-                elif isinstance(node, ast.ImportFrom) and node.module:
-                    self._add_edge_if_match(graph, name, node.module, modules)
+                        self._add_edge(graph, name, alias.name)
+                elif isinstance(node, ast.ImportFrom):
+                    base = self._resolve_from(name, rel, node)
+                    if base is None:
+                        continue
+                    for alias in node.names:
+                        # `from pkg import repos` may name a submodule; prefer that edge.
+                        self._add_edge(graph, name, f"{base}.{alias.name}" if base else alias.name,
+                                       fallback=base)
 
         visited: set[str] = set()
         stack: list[str] = []
@@ -544,14 +553,34 @@ class ArchitectureAnalyzer:
         return cycles
 
     @staticmethod
-    def _add_edge_if_match(
-        graph: dict[str, set[str]], source: str, imported: str, modules: dict[str, str],
+    def _resolve_from(source: str, rel: str, node: ast.ImportFrom) -> str | None:
+        """Dotted base module of a ``from ... import`` (resolving relative levels)."""
+        if node.level == 0:
+            return node.module
+        parts = source.split(".")
+        package = parts if rel.endswith("__init__.py") else parts[:-1]
+        keep = len(package) - (node.level - 1)
+        if keep < 0:
+            return None
+        base = package[:keep]
+        if node.module:
+            base.append(node.module)
+        return ".".join(base)
+
+    @staticmethod
+    def _add_edge(
+        graph: dict[str, set[str]], source: str, imported: str, fallback: str | None = None,
     ) -> None:
-        for candidate in modules:
-            if candidate == source:
+        """Add an edge to the module named exactly ``imported`` (matched on dotted-name
+        boundaries, so ``os`` never matches ``pkg.zzz_os``), else to ``fallback``."""
+        for target in (imported, fallback):
+            if not target:
                 continue
-            if candidate.endswith(imported) or imported.endswith(candidate):
-                graph[source].add(candidate)
+            matches = [m for m in graph
+                       if m != source and (m == target or m.endswith("." + target))]
+            if matches:
+                graph[source].update(matches)
+                return
 
 
 class CleanCodeAnalyzer:
@@ -712,7 +741,7 @@ class DocumentationAnalyzer:
 
         This is the signal that answers "which of my repos are missing what"
         across a whole account, so it reports each piece separately rather than
-        as one pass/fail. Staleness is checked by delegating to the repo_tree
+        as one pass/fail. Staleness is checked by delegating to the repo-tree
         skill's own generator — the only thing that knows how to rebuild a tree
         — rather than reimplementing the comparison here.
         """
@@ -766,7 +795,7 @@ class DocumentationAnalyzer:
         None is not False: "we could not check" and "it is current" are different
         answers, and the agent's second pass needs to be able to tell them apart.
         """
-        generator = Path(__file__).resolve().parent.parent / "repo_tree" / "gen_tree.py"
+        generator = Path(__file__).resolve().parent.parent / "repo-tree" / "gen_tree.py"
         if not generator.is_file():
             return None
         try:
@@ -897,7 +926,7 @@ class ScalabilityAnalyzer:
                         ))
 
         score -= min(40.0, 10.0 * deep_loops)
-        metrics = {
+        metrics: dict[str, Any] = {
             "deep_loop_functions": deep_loops,
             "generator_functions": generator_functions,
             "list_accumulating_functions": list_building_functions,
@@ -928,17 +957,21 @@ class TestingAnalyzer:
     """Scores Testing: test-to-source ratio, parsed coverage reports, and mock usage."""
 
     domain = "Testing"
-    _TEST_NAME = re.compile(r"(^test_.*\.py$|.*_test\.py$|.*\.test\.[tj]sx?$|.*\.spec\.[tj]sx?$)")
+    _TEST_NAME = re.compile(
+        r"(^test_.*\.py$|.*_test\.(py|go)$|.*\.test\.[tj]sx?$|.*\.spec\.[tj]sx?$"
+        r"|.*Tests?\.(kt|java)$)"
+    )
 
     def analyze(self, scan: ProjectScan) -> DomainResult:
         findings: list[Finding] = []
         score = 100.0
         metrics: dict[str, Any] = {}
 
-        code_languages = {"python", "typescript", "javascript"}
+        code_languages = {"python", "typescript", "javascript", "go", "kotlin", "java", "rust"}
         source_files = [f for f in scan.files if f.language in code_languages]
         test_files = [f for f in source_files if self._TEST_NAME.match(Path(f.relative_path).name)]
-        non_test_files = [f for f in source_files if f not in test_files]
+        test_paths = {f.relative_path for f in test_files}
+        non_test_files = [f for f in source_files if f.relative_path not in test_paths]
 
         if non_test_files:
             ratio = len(test_files) / len(non_test_files)
@@ -1088,7 +1121,7 @@ def _print_summary(report: AuditReport) -> None:
 def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint: scan, audit, write JSON, print a summary."""
     parser = argparse.ArgumentParser(
-        description="Collect repository-health signals for audit_repo."
+        description="Collect repository-health signals for audit-repo."
     )
     parser.add_argument("--project", type=Path, default=Path("."), help="Project root to scan.")
     parser.add_argument("--output", type=Path, default=Path("audit_data.json"),

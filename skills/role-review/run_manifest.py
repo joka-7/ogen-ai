@@ -42,6 +42,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 REVIEWS_DIRNAME = ".ai-reviews"
 MANIFEST_NAME = "manifest.json"
@@ -51,7 +52,7 @@ SAFE_SHA = re.compile(r"[0-9a-f]{4,64}|unknown")
 
 # Everything a run produces. manifest.json and archive/ are excluded: the ledger
 # outlives the runs it describes, and archived reports are already filed.
-ARTIFACT_GLOBS = ("*.md", "audit_data.json")
+ARTIFACT_GLOBS = ("*.md", "audit_data.json", "git_meta.txt")
 
 STATUS_CURRENT = 0
 STATUS_STALE = 1
@@ -83,7 +84,7 @@ def is_dirty(project: Path) -> bool | None:
     return bool(status.strip())
 
 
-def load_manifest(reviews: Path) -> dict:
+def load_manifest(reviews: Path) -> dict[str, Any]:
     path = reviews / MANIFEST_NAME
     if not path.exists():
         return {"schema": SCHEMA_VERSION, "repo": reviews.parent.name, "runs": []}
@@ -100,7 +101,7 @@ def load_manifest(reviews: Path) -> dict:
     return data
 
 
-def save_manifest(reviews: Path, manifest: dict) -> None:
+def save_manifest(reviews: Path, manifest: dict[str, Any]) -> None:
     reviews.mkdir(parents=True, exist_ok=True)
     final = reviews / MANIFEST_NAME
     tmp = reviews / f".{MANIFEST_NAME}.{os.getpid()}.tmp"
@@ -108,7 +109,7 @@ def save_manifest(reviews: Path, manifest: dict) -> None:
     os.replace(tmp, final)
 
 
-def latest_run(manifest: dict) -> dict | None:
+def latest_run(manifest: dict[str, Any]) -> dict[str, Any] | None:
     runs = manifest.get("runs", [])
     return runs[-1] if runs else None
 
@@ -213,6 +214,29 @@ def status(project: Path, reviews: Path) -> int:
     return STATUS_CURRENT
 
 
+def write_git_meta(project: Path, reviews: Path) -> Path:
+    """Write the git facts the shell-less roles (sre, engineering-manager) need."""
+    sections = [
+        ("recent commits", ("log", "--oneline", "-100")),
+        ("contributors", ("shortlog", "-sn", "HEAD")),
+        ("last commit age", ("log", "-1", "--format=%cr")),
+        ("authors, last 200 commits", ("log", "--format=%an", "-200")),
+    ]
+    lines: list[str] = []
+    for title, args in sections:
+        out = git(project, *args)
+        if title.startswith("authors") and out:
+            counts: dict[str, int] = {}
+            for name in out.splitlines():
+                counts[name] = counts.get(name, 0) + 1
+            out = "\n".join(f"{n:5d} {a}" for a, n in sorted(counts.items(), key=lambda kv: -kv[1]))
+        lines.append(f"## {title}\n{out if out is not None else '(not a git repository)'}\n")
+    reviews.mkdir(parents=True, exist_ok=True)
+    target = reviews / "git_meta.txt"
+    target.write_text("\n".join(lines), encoding="utf-8")
+    return target
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Track role-review runs in a target repo's .ai-reviews/ directory."
@@ -226,6 +250,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Note a persisted role report. Repeatable.")
     parser.add_argument("--backlog", metavar="FILE", help="Note the persisted backlog file.")
     parser.add_argument("--audit-score", type=int, help="Note the overall audit score.")
+    parser.add_argument("--git-meta", action="store_true",
+                        help="Write .ai-reviews/git_meta.txt for roles that have no shell.")
     parser.add_argument("--status", action="store_true",
                         help="Report whether the reports on disk still describe HEAD.")
     args = parser.parse_args(argv)
@@ -234,6 +260,12 @@ def main(argv: list[str] | None = None) -> int:
     if not project.is_dir():
         parser.error(f"--project {project} is not a directory")
     reviews = project / REVIEWS_DIRNAME
+
+    if args.git_meta:
+        print(f"wrote {write_git_meta(project, reviews)}")
+        if not (args.begin or args.status or args.record or args.backlog
+                or args.audit_score is not None):
+            return 0
 
     if not (args.begin or args.status or args.record or args.backlog
             or args.audit_score is not None):

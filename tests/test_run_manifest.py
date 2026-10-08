@@ -1,4 +1,4 @@
-"""Behavioral tests for skills/role_review/run_manifest.py."""
+"""Behavioral tests for skills/role-review/run_manifest.py."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCRIPT = REPO / "skills" / "role_review" / "run_manifest.py"
+SCRIPT = REPO / "skills" / "role-review" / "run_manifest.py"
 
 
 class ManifestHarness(unittest.TestCase):
@@ -147,6 +147,16 @@ class TestCliValidation(ManifestHarness):
             capture_output=True, text=True,
         )
         self.assertNotEqual(result.returncode, 0)
+
+
+class TestGitMeta(ManifestHarness):
+    def test_git_meta_file_is_written_with_history(self) -> None:
+        self._commit("second")
+        result = self.run_manifest("--git-meta")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        text = (self.project / ".ai-reviews" / "git_meta.txt").read_text(encoding="utf-8")
+        self.assertIn("second", text)
+        self.assertIn("## contributors", text)
 
 
 class TestHostileManifest(ManifestHarness):
