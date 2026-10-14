@@ -72,6 +72,7 @@ LANG_GLOBS: dict[str, str] = {
     "go": "**/*.go",
     "rust": "**/*.rs",
     "swift": "**/*.swift",
+    "cpp": "**/*.cc,**/*.cpp,**/*.cxx,**/*.h,**/*.hpp",
     "react": "**/*.tsx,**/*.jsx",
 }
 

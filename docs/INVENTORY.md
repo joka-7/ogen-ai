@@ -26,6 +26,7 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 |---|---|---|
 | `base.md` | always | Working agreement, code quality, safety, output discipline |
 | `languages/python.md` | `languages = ["python"]` | Modern typing, `mypy --strict`, dataclasses, one error hierarchy per package, stdlib `logging` conventions |
+| `languages/cpp.md` | `... "cpp"` | RAII/Rule of Zero, `-Wall -Wextra -Werror` + sanitizers, `const`-correctness, ABC contracts with constructor DI, one exception hierarchy, `spdlog` conventions |
 | `languages/typescript.md` | `... "typescript"` | `strict: true`, no `any`, `interface`/`type` split, discriminated unions |
 | `languages/javascript.md` | `... "javascript"` | JS-specific conventions (no static typing to lean on) |
 | `languages/kotlin.md` | `... "kotlin"` | Null safety (no `!!`), sealed classes, structured coroutines |
@@ -33,7 +34,8 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 | `languages/rust.md` | `... "rust"` | `Result` over panics, justified `unsafe`, borrowing over cloning |
 | `languages/swift.md` | `... "swift"` | Value types by default, no force-unwrap, structured concurrency |
 | `frameworks/react.md` | `frameworks = ["react"]` | React-specific conventions |
-| `practices/testing.md` | `practices = ["testing"]` | Arrange-Act-Assert, deterministic, real objects over mocks |
+| `practices/coding.md` | `practices = ["coding"]` | The six coding principles, contract-vs-implementation, naming, formatting enforced by tooling |
+| `practices/testing.md` | `practices = ["testing"]` | Arrange-Act-Assert, deterministic, real objects over mocks, injectability over patching, test doubles, pyramid, coverage target |
 | `practices/git-commits.md` | `... "git-commits"` | Conventional Commits, one logical change per commit |
 | `practices/security.md` | `... "security"` | No hardcoded secrets, no logged PII, hostile-input validation |
 | `practices/architecture.md` | `... "architecture"` | HLD/LLD checklists, contract-vs-implementation, centralized error handling, structured logging |
@@ -65,6 +67,7 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 | `repo-tree` | Generate/refresh the annotated file tree in `docs/STRUCTURE.md` + `README.md`, and `--check` it for drift |
 | `role-review` | Shared output schema, severity scale, and context-budget contract the role agents load |
 | `scaffold-python-service` | Scaffold a new Python service — FastAPI + strict-mypy baseline, gate-verified |
+| `engineering-guides` | The full coding/architecture/testing/documentation guides — general principles plus Python, TypeScript and C++, each short and detailed — loaded on demand |
 | `write-design-doc` | Write HLD.md/LLD.md — either documenting an existing repo as-built, or proposing a new feature's design, against the HLD/LLD checklist |
 
 ## Commands (`commands/claude/`)
