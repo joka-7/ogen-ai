@@ -13,7 +13,7 @@ If $ARGUMENTS names no items — the whole string was just a path/URL, or nothin
 
 **3. Verify the backlog is current.**
 ```
-python .ai/skills/role_review/run_manifest.py --project <workdir> --status
+python .ai/skills/role-review/run_manifest.py --project <workdir> --status
 ```
 If this reports the backlog as stale (exit code 1), tell the user the backlog describes an older commit than HEAD and ask them to confirm before proceeding — a `file:line` in a stale finding may no longer point at the same code. Proceed only on explicit confirmation, or if the user names items and reconfirms the same items already.
 
@@ -29,7 +29,7 @@ Give it the workdir path, `<short-sha>`, and *only* the resolved item text from 
 **7. Persist.**
 Write its returned summary verbatim to `<workdir>/.ai-reviews/developer.md`, then:
 ```
-python .ai/skills/role_review/run_manifest.py --project <workdir> --record developer=developer.md
+python .ai/skills/role-review/run_manifest.py --project <workdir> --record developer=developer.md
 ```
 
 **8. Never commit or push.** That is `developer`'s own rule and this command does not override it. Report the diffstat (`git diff --stat` in `<workdir>`) and suggest `/role qa <path>` to re-verify before anyone commits. If the target has a Jira or Confluence integration configured, also suggest `/sync-tracker` (to transition the implemented items' tickets) and `/sync-docs` (to catch documentation drift the implementation introduced) as natural next steps — neither runs automatically.

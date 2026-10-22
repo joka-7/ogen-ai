@@ -112,4 +112,4 @@ same category.
   on output discipline apply to what you write here too.
 - This skill only writes design docs. It does not edit source code (that's `developer`, and
   only against approved backlog items) and it does not review a repo end-to-end across other
-  domains (that's `audit_repo`, or the role-review fan-out) — stay in lane.
+  domains (that's `audit-repo`, or the role-review fan-out) — stay in lane.

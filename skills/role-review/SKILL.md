@@ -1,6 +1,6 @@
 ---
 name: role-review
-description: The shared output contract for the role agents (qa, architect, product, engineering-manager, sre, senior-dev, ciso, planner) — fixed report schema, severity scale, finding-ID convention, evidence rules, and the context-budget protocol for exploring a large repo without reading all of it. Load this whenever you are acting as one of those roles reviewing a target repository, before writing any findings, so every role's report is shaped the same way and can be aggregated and deduplicated.
+description: The shared output contract for the role agents (qa, architect, product, engineering-manager, sre, senior-dev, ciso, privacy, performance, frontend, planner) — fixed report schema, severity scale, finding-ID convention, evidence rules, and the context-budget protocol for exploring a large repo without reading all of it. Load this whenever you are acting as one of those roles reviewing a target repository, before writing any findings, so every role's report is shaped the same way and can be aggregated and deduplicated.
 ---
 
 # Role Review
@@ -48,6 +48,7 @@ important thing the reader should act on.>
 ### <ID> — <one-line title>
 - **Severity:** critical | high | medium | low | info
 - **Where:** `path/to/file.ext:123`
+- **Fingerprint:** `<role>/<path>/<rule-slug>` — no line number, no sha, no ID number
 - **Evidence:** <what you actually observed — quoted code, config, or command output>
 - **Impact:** <why it matters in this repo's context, not in the abstract>
 
@@ -72,8 +73,20 @@ that has not prioritized anything.
 ## Finding IDs
 
 Prefix by role, two digits, numbered in the order you report them: `QA-01`, `ARC-01`,
-`PRD-01`, `EM-01`, `SRE-01`, `SDR-01`, `SEC-01`. The aggregation step cites these when it
+`PRD-01`, `EM-01`, `SRE-01`, `SDR-01`, `SEC-01`, `PRV-01`, `PRF-01`, `FE-01`. The aggregation step cites these when it
 merges duplicates, so they must be stable within a report and unique across roles.
+
+A finding's **fingerprint** is what stays the same when the finding is re-reported against a
+newer commit: the role, the file path, and a short kebab-case slug naming the rule or defect
+(`qa/tests/test_sync.py/mock-hides-failure`). IDs are renumbered every run and `file:line`
+moves, so downstream tools (the tracker's ticket marker, dedupe in the backlog) key on the
+fingerprint, never on the ID.
+
+## Evidence masking
+
+Every role, not only `ciso`: when evidence contains a credential, token, key, password or
+personal data, quote only the first four characters followed by `…` and say what it is.
+Reports flow into `BACKLOG.md` and from there into tickets, so a secret quoted once spreads.
 
 ## Steps
 

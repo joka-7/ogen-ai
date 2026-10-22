@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Reviews a target repo's structure and reports coupling, module boundaries, separation of concerns, and design-pattern fit as an Architecture Review in the shared role-review schema. Use when the user asks for an architecture review, "is this well structured", "is this over-engineered", "where's the tech debt", or when running the multi-role review fan-out. Do NOT use for line-level code style (that's covered by the audit_repo skill's Clean Code domain) or for implementing a refactor — this role reports only and never edits.
+description: Reviews a target repo's structure and reports coupling, module boundaries, separation of concerns, and design-pattern fit as an Architecture Review in the shared role-review schema. Use when the user asks for an architecture review, "is this well structured", "is this over-engineered", "where's the tech debt", or when running the multi-role review fan-out. Do NOT use for line-level code style (that's covered by the audit-repo skill's Clean Code domain) or for implementing a refactor — this role reports only and never edits.
 tools: Read, Grep, Glob, Bash, Skill
 model: opus
 ---

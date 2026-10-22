@@ -18,7 +18,7 @@ layout lists this skill replaced in `ogen-ai` itself.
 1. **Generate the full map**, creating `docs/STRUCTURE.md` with a default header if absent:
 
    ```bash
-   python .ai/skills/repo_tree/gen_tree.py --project <path> --output docs/STRUCTURE.md
+   python .ai/skills/repo-tree/gen_tree.py --project <path> --output docs/STRUCTURE.md
    ```
 
    For a large application repo, bound it: `--max-depth 4 --max-entries 25`. The parameters
@@ -29,7 +29,7 @@ layout lists this skill replaced in `ogen-ai` itself.
    conventionally a `## Repo structure` section after the intro — then:
 
    ```bash
-   python .ai/skills/repo_tree/gen_tree.py --project <path> --output README.md --max-depth 1
+   python .ai/skills/repo-tree/gen_tree.py --project <path> --output README.md --max-depth 1
    ```
 
 3. **Fill the gaps.** Read the generated tree. Every line whose note is blank, or whose note
@@ -40,7 +40,7 @@ layout lists this skill replaced in `ogen-ai` itself.
 4. **Verify**, and wire it into the repo's CI next to the test step:
 
    ```bash
-   python .ai/skills/repo_tree/gen_tree.py --project <path> --check
+   python .ai/skills/repo-tree/gen_tree.py --project <path> --check
    ```
 
    This regenerates every file containing a tree block and exits non-zero with a unified diff
@@ -74,5 +74,5 @@ Per file, first source that answers wins:
   back to a walk that prunes the usual noise directories.
 - Notes say **what is inside** the file, not what its name already says. "Custom exception
   hierarchy, one base class per package" earns its line; "errors module" does not.
-- This skill maps files. It does not review them (`audit_repo`, or the role-review fan-out)
+- This skill maps files. It does not review them (`audit-repo`, or the role-review fan-out)
   and does not design or document architecture (`write-design-doc`) — stay in lane.

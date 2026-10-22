@@ -24,3 +24,10 @@
 - Offload slow or non-request-critical work to a background queue; the handler returns
   immediately. Background tasks: pass IDs not objects, idempotent by design, retries with
   backoff and a dead-letter path.
+- Apply the six principles at system scale: *Beautiful* (declarative registration — a new handler is one entry), *Explicit* (one composition root; no auto-wiring magic to trace), *Readable* (domain-driven names and typed schemas, not untyped maps), *Simple* (start as a monolith, split only on real need — YAGNI), *Scalable* (slow work leaves the request path), *Consistent* (one path style, one response envelope, one error shape everywhere).
+- Integration patterns: **Adapter** wraps every third-party SDK behind your own interface — only the adapter imports the vendor library. **Facade** hides a multi-service subsystem behind one method. **Immutable events** (`frozen`/`readonly`/`const`) cross boundaries.
+- Anti-patterns to refuse: God Object, Spaghetti Code, Lava Flow (dead code nobody dares remove), Boat Anchor (code kept "in case").
+- Log levels: `DEBUG` (dev only) → `INFO` (routine) → `WARNING` (recoverable) → `ERROR` (alertable failure). Logs go to stdout and an aggregator. Logging alone isn't observability: add RED-method metrics (rate, errors, duration), tracing (OpenTelemetry), and separate liveness and readiness health checks.
+- CI/CD order: lint/type-check → unit tests → build → integration tests → staging → smoke/E2E → promote. Containers run non-root from pinned base images. Schema changes use expand–contract for zero-downtime deploys.
+- Design for testability up front: DI + separation of concerns + adapters make code testable by construction. Data crossing the edge is validated by schema before the service layer sees it.
+- Full explanations, per-language detail (Python, TypeScript, C++) and worked code: the `engineering-guides` skill.

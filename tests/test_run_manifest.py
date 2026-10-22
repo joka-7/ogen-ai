@@ -1,4 +1,4 @@
-"""Behavioral tests for skills/role_review/run_manifest.py."""
+"""Behavioral tests for skills/role-review/run_manifest.py."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-SCRIPT = REPO / "skills" / "role_review" / "run_manifest.py"
+SCRIPT = REPO / "skills" / "role-review" / "run_manifest.py"
 
 
 class ManifestHarness(unittest.TestCase):
@@ -147,6 +147,38 @@ class TestCliValidation(ManifestHarness):
             capture_output=True, text=True,
         )
         self.assertNotEqual(result.returncode, 0)
+
+
+class TestGitMeta(ManifestHarness):
+    def test_git_meta_file_is_written_with_history(self) -> None:
+        self._commit("second")
+        result = self.run_manifest("--git-meta")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        text = (self.project / ".ai-reviews" / "git_meta.txt").read_text(encoding="utf-8")
+        self.assertIn("second", text)
+        self.assertIn("## contributors", text)
+
+
+class TestHostileManifest(ManifestHarness):
+    def test_traversal_sha_in_manifest_cannot_escape_archive(self) -> None:
+        reviews = self.project / ".ai-reviews"
+        reviews.mkdir()
+        (reviews / "qa.md").write_text("report", encoding="utf-8")
+        (reviews / "manifest.json").write_text(
+            json.dumps({"runs": [{"sha": "../../escaped"}]}), encoding="utf-8")
+        self._commit("next")
+        self.run_manifest("--begin")
+        self.assertFalse((self.project.parent / "escaped").exists())
+        self.assertFalse((reviews.parent / "escaped").exists())
+        self.assertTrue((reviews / "qa.md").exists())
+
+    def test_non_object_manifest_is_replaced_not_crashed_on(self) -> None:
+        reviews = self.project / ".ai-reviews"
+        reviews.mkdir()
+        (reviews / "manifest.json").write_text("[1, 2]", encoding="utf-8")
+        result = self.run_manifest("--begin")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.manifest["runs"]), 1)
 
 
 if __name__ == "__main__":

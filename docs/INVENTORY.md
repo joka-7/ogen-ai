@@ -26,6 +26,7 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 |---|---|---|
 | `base.md` | always | Working agreement, code quality, safety, output discipline |
 | `languages/python.md` | `languages = ["python"]` | Modern typing, `mypy --strict`, dataclasses, one error hierarchy per package, stdlib `logging` conventions |
+| `languages/cpp.md` | `... "cpp"` | RAII/Rule of Zero, `-Wall -Wextra -Werror` + sanitizers, `const`-correctness, ABC contracts with constructor DI, one exception hierarchy, `spdlog` conventions |
 | `languages/typescript.md` | `... "typescript"` | `strict: true`, no `any`, `interface`/`type` split, discriminated unions |
 | `languages/javascript.md` | `... "javascript"` | JS-specific conventions (no static typing to lean on) |
 | `languages/kotlin.md` | `... "kotlin"` | Null safety (no `!!`), sealed classes, structured coroutines |
@@ -33,7 +34,8 @@ included; everything else is opt-in per project, so a Python repo doesn't carry 
 | `languages/rust.md` | `... "rust"` | `Result` over panics, justified `unsafe`, borrowing over cloning |
 | `languages/swift.md` | `... "swift"` | Value types by default, no force-unwrap, structured concurrency |
 | `frameworks/react.md` | `frameworks = ["react"]` | React-specific conventions |
-| `practices/testing.md` | `practices = ["testing"]` | Arrange-Act-Assert, deterministic, real objects over mocks |
+| `practices/coding.md` | `practices = ["coding"]` | The six coding principles, contract-vs-implementation, naming, formatting enforced by tooling |
+| `practices/testing.md` | `practices = ["testing"]` | Arrange-Act-Assert, deterministic, real objects over mocks, injectability over patching, test doubles, pyramid, coverage target |
 | `practices/git-commits.md` | `... "git-commits"` | Conventional Commits, one logical change per commit |
 | `practices/security.md` | `... "security"` | No hardcoded secrets, no logged PII, hostile-input validation |
 | `practices/architecture.md` | `... "architecture"` | HLD/LLD checklists, contract-vs-implementation, centralized error handling, structured logging |
@@ -51,15 +53,21 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 | Skill | Purpose |
 |---|---|
 | `add-logging` | Add/fix structured logging in code using the language's idiomatic logger, per the language rules |
-| `audit_repo` | Score a target repo 0–100 across six domains; writes `AUDIT_REPORT.md` |
+| `audit-repo` | Score a target repo 0–100 across six domains; writes `AUDIT_REPORT.md` |
 | `conventional-commit` | Write a Conventional Commits message from the staged diff |
-| `customize_config` | Scaffold `ai-project-config.toml` for project-local rule/weight overrides, outside `.ai/` |
+| `customize-config` | Scaffold `ai-project-config.toml` for project-local rule/weight overrides, outside `.ai/` |
+| `db-migration-safety` | Write or review a schema migration: expand/contract, non-blocking DDL, deploy order, rollback |
+| `debug-root-cause` | Reproduce, bisect, pin with a failing test, then fix the cause rather than the symptom |
+| `dependency-upgrade` | Upgrade dependencies in reviewable groups, reading changelogs and running the project's gates |
+| `pr-description` | Write a PR title and body from the real diff, honoring the repo's PR template |
+| `threat-model` | STRIDE threat model over data flows and trust boundaries, with mitigations and residual risk |
 | `lesson-capture` | Turn a correction into a written rule (in `local_tail`, the project's own `AGENTS.md`/`CLAUDE.md`, or `ai-project-config.toml`) instead of only this session's memory |
-| `port-module-to-ts` | Port a JS/Python module's behavior into TypeScript against the TS rules |
+| `port-module` | Port a module from one language to another against the target language's rules, preserving behavior |
 | `release-checklist` | Walk a repo from its last tag to a version-bumped, tagged commit; never pushes |
-| `repo_tree` | Generate/refresh the annotated file tree in `docs/STRUCTURE.md` + `README.md`, and `--check` it for drift |
-| `role_review` | Shared output schema, severity scale, and context-budget contract the role agents load |
+| `repo-tree` | Generate/refresh the annotated file tree in `docs/STRUCTURE.md` + `README.md`, and `--check` it for drift |
+| `role-review` | Shared output schema, severity scale, and context-budget contract the role agents load |
 | `scaffold-python-service` | Scaffold a new Python service — FastAPI + strict-mypy baseline, gate-verified |
+| `engineering-guides` | The full coding/architecture/testing/documentation guides — general principles plus Python, TypeScript and C++, each short and detailed — loaded on demand |
 | `write-design-doc` | Write HLD.md/LLD.md — either documenting an existing repo as-built, or proposing a new feature's design, against the HLD/LLD checklist |
 
 ## Commands (`commands/claude/`)
@@ -83,7 +91,7 @@ versus a real example versus a documented fallback for each.
 | `/review` | Review the current staged diff against this repo's rules |
 | `/test` | Write or extend tests for `$ARGUMENTS`, following the testing rules |
 | `/role <name> [target]` | Run one role agent against a target repo |
-| `/role-review [target]` | Fan out all seven reviewing roles in parallel → prioritized backlog |
+| `/role-review [target]` | Fan out the seven default reviewing roles in parallel (`privacy`, `performance`, `frontend` when named) → prioritized backlog |
 | `/role-backlog [target]` | Re-aggregate reports already on disk, without re-reviewing |
 | `/role-implement <items> [target]` | The only path to invoking `developer` — requires named, approved items |
 | `/sync-tracker [target]` | Push backlog/implementation status to Jira via `tracker` |
@@ -117,9 +125,12 @@ reach Jira or Confluence. See `docs/DESIGN.md` §12.
 | `qa` | sonnet | yes | no | Test suite quality: coverage, isolation, mock quality |
 | `architect` | opus | yes | no | Structure: coupling, module boundaries, design-pattern fit |
 | `product` | sonnet | yes | no | Docs-vs-behavior drift, API/CLI coherence, user-facing errors |
-| `engineering-manager` | sonnet | yes | no | Delivery health: CI gates, commit hygiene, bus factor, dependency freshness |
-| `sre` | sonnet | yes (fenced) | no | Operability: healthchecks, graceful shutdown, retries, observability, rollback |
+| `engineering-manager` | sonnet | **no** | no | Delivery health: CI gates, commit hygiene, bus factor, dependency freshness |
+| `sre` | sonnet | **no** | no | Operability: healthchecks, graceful shutdown, retries, observability, rollback |
 | `senior-dev` | opus | yes | no | Line-level code quality: correctness, error handling, readability, abstraction fit |
+| `privacy` | sonnet | **no** | no | Personal data: PII flows, logging of personal data, retention and deletion, consent, vendor sharing (opt-in) |
+| `performance` | sonnet | **no** | no | Cost: N+1 queries, unbounded work, blocking in async, missing pagination and caching (opt-in) |
+| `frontend` | sonnet | **no** | no | UI accessibility, keyboard and focus, loading/error/empty states (opt-in; nothing to review without a UI) |
 | `ciso` | opus | **no** | no | Security exposure: secrets, authz gaps, injection, supply chain — never executes target code |
 | `planner` | opus | no | no | Aggregates the reviewing roles' reports into one deduplicated backlog |
 | `developer` | opus | yes | **yes** | Implements only backlog items a human has explicitly named and approved |

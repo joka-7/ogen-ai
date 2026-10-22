@@ -161,24 +161,24 @@ flowchart TD
 
 **Trust boundary, enforced by tool grants, not instructions.** Withholding a tool is the
 only real enforcement in this layer — everything in an agent body is advisory. `ciso`,
-`planner`, and `tracker` hold no `Bash` at all; the reviewing roles hold no `Edit`/`Write`
+`planner`, `tracker`, `sre` and `engineering-manager` hold no `Bash` at all; the reviewing roles hold no `Edit`/`Write`
 and return a report for the invoking command to persist; only `developer` and `docs-sync`
 can write to the target repo, each scoped to a different domain (code vs.
 documentation-shaped content). `docs-sync`'s scope is a body rule, not a tool-grant
-guarantee — Claude Code cannot glob-scope `Edit`/`Write` — the same weaker category as
-`sre`'s fenced (git-metadata-only) `Bash`. See `docs/DESIGN.md` §10/§12 for the full
+guarantee — Claude Code cannot glob-scope `Edit`/`Write` — a weaker category than withheld tools. See `docs/DESIGN.md` §10/§12 for the full
 per-role reasoning and `adapters/claude-agent-permissions.json` for the `Bash` deny-rules
 that close the "Bash but read-only" gap a `tools:` list cannot express by itself.
 
 **External systems.** `tracker`/`docs-sync` are the only components in this repo that ever
 reach outside a target repo, and they do it exclusively through MCP tool grants
-(`mcp__atlassian__*`) — never credentialed `Bash` — so an untrusted target repo's content can
-never reach a credential through them, preserving the same isolation principle as the git-only
-Bash fence on every other role.
+(`mcp__atlassian__*`) — never credentialed `Bash` — so no credential is ever exposed as a string. That does **not**
+stop prompt-injected *use* of the authority those tools carry: untrusted report text can still
+steer a Jira or Confluence write. Hence the human-approval step before `tracker` acts, and
+the rule that `docs-sync` shows a diff before any external write.
 
 ## 7. Non-functional properties
 
-- **Stdlib-only.** `bin/ai-sync` and `skills/role_review/run_manifest.py` depend on nothing
+- **Stdlib-only.** `bin/ai-sync` and `skills/role-review/run_manifest.py` depend on nothing
   beyond the Python 3.11+ standard library (`tomllib`) — no install step for either.
 - **Idempotent by design.** Both `ai-sync` re-runs and `run_manifest.py --begin` at an
   unchanged commit are safe to repeat.
@@ -187,7 +187,7 @@ Bash fence on every other role.
   a silent trap `/role-implement` can walk into.
 - **Context-budget aware.** `AGENTS.md` loads every session, so its size is estimated and
   flagged (never hard-failed) past a configurable budget; reviewing roles work from a shared,
-  explicit context budget defined in `skills/role_review/SKILL.md` rather than reading a
+  explicit context budget defined in `skills/role-review/SKILL.md` rather than reading a
   target repo unbounded.
 - **Tested.** `tests/` is a stdlib `unittest` suite covering `ai-sync`'s generator behavior,
   `run_manifest.py`'s ledger logic, and the structural conventions (frontmatter shape, tool

@@ -11,7 +11,7 @@ Check `<workdir>/.ai-reviews/` for at least two `<role>.md` files. If fewer than
 
 **3. Check currency.**
 ```
-python .ai/skills/role_review/run_manifest.py --project <workdir> --status
+python .ai/skills/role-review/run_manifest.py --project <workdir> --status
 ```
 If this reports the reports as stale (exit code 1), say so plainly — name the sha the reports describe and the current HEAD — but proceed anyway; a stale re-aggregation of what's on disk is still what the user asked for. Do not regenerate anything yourself.
 
@@ -21,7 +21,7 @@ Launch `planner` with the workdir path, repo name, `<short-sha>`, and the list o
 **5. Persist.**
 Write the backlog verbatim to `<workdir>/.ai-reviews/BACKLOG.md`, overwriting any prior one. Then:
 ```
-python .ai/skills/role_review/run_manifest.py --project <workdir> --backlog BACKLOG.md
+python .ai/skills/role-review/run_manifest.py --project <workdir> --backlog BACKLOG.md
 ```
 
 **6. Stop and ask for approval.**

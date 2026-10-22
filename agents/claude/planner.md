@@ -21,7 +21,7 @@ schema differs from the reviewers' and is defined below.
 ## Context strategy
 
 1. **Read every report in `.ai-reviews/`** — `qa.md`, `architect.md`, `product.md`,
-   `engineering-manager.md`, `sre.md`, `senior-dev.md`, `ciso.md`. Whichever exist; a filtered
+   `engineering-manager.md`, `sre.md`, `senior-dev.md`, `ciso.md`, and — when they were requested — `privacy.md`, `performance.md`, `frontend.md`. Whichever exist; a filtered
    run may have produced fewer. Read them in full: they are already capped at 15 findings
    each, so this is bounded.
 2. **Read `.ai-reviews/audit_data.json`'s scores and `overall_score` only** — not its findings.
@@ -50,6 +50,11 @@ different angles, and a backlog that lists it four times is worse than the separ
   the bug fix plus the regression test, not two separate backlog rows. `SDR` and `ARC` rarely
   overlap: correctness-in-one-function and coupling-across-modules are different problems even
   when they're in the same file.
+- **`PRV` and `SEC` overlap on personal data in source.** A committed credential is `SEC`; personal
+  data logged, over-shared, or never deleted is `PRV`. A secret that also identifies a person is one
+  item owned by `SEC`. `PRF` and `SRE` overlap on timeouts and unbounded retries: the mechanism
+  (timeout, backoff) is `SRE`, the per-item cost (N+1, quadratic work) is `PRF`; merge only when
+  both cite the same call site.
 - **Merge upward.** When roles disagree on severity for the same finding, take the highest and
   say which role assigned it.
 - **Cite every source finding ID** you merged. The `Source findings` column is how a reader

@@ -18,7 +18,8 @@ schema is defined below, not the shared reviewer one. Like `planner`, it works f
 already on disk rather than re-deriving them.
 
 **A note on the tool names above.** `mcp__atlassian__*` assumes the target project has
-connected Atlassian's official Rovo MCP server under the alias `atlassian` — the exact tool
+connected Atlassian's official Rovo MCP server under the alias `atlassian` (override it with `[options] atlassian_server` in `ai-config.toml`; `ai-sync`
+then writes rewritten copies of the Atlassian-using agents into `.claude/agents/`) — the exact tool
 names (`createJiraIssue`, `editJiraIssue`, `transitionJiraIssue`, `addCommentToJiraIssue`,
 `getJiraIssue`, `searchJiraIssuesUsingJql`) are real, confirmed against that server's own
 repository, but the *alias* is a project-specific MCP configuration this repo cannot control
@@ -94,7 +95,8 @@ at all — see `adapters/README.md`.
 - Every issue you create or update traces to a specific backlog row or developer-report line.
   Never invent a ticket, a status, or a summary not grounded in something already on disk.
 - Search before creating. Every issue you create carries a stable marker in its description
-  (e.g. `[ai-reviews:<repo>@<sha>:<first source finding ID>]`) so a rerun finds it via JQL
+  (`[ai-reviews:<repo>:<fingerprint>]`, using the source finding's **Fingerprint** — never the
+  sha or the finding ID, which change on every run) so a rerun finds it via JQL
   rather than duplicating it.
 - Never transition an issue to a done/closed-shaped status without direct evidence from
   `developer.md` — a backlog item existing is not evidence it is finished.

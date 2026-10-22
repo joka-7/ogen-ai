@@ -47,6 +47,7 @@ import sys
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 MARKER_BEGIN_RE = re.compile(r"<!-- BEGIN GENERATED TREE(?: \(([^)]*)\))? -->")
 MARKER_END = "<!-- END GENERATED TREE -->"
@@ -75,7 +76,7 @@ MAX_FILE_BYTES = 400_000
 DEFAULT_STRUCTURE_HEADER = """# Repository structure
 
 Every file in this repo and what is inside it. The tree below is **generated** —
-run `python .ai/skills/repo_tree/gen_tree.py --project . --output docs/STRUCTURE.md`
+run `python .ai/skills/repo-tree/gen_tree.py --project . --output docs/STRUCTURE.md`
 to refresh it, and never edit between the markers by hand.
 
 <!-- BEGIN GENERATED TREE -->
@@ -145,6 +146,21 @@ def _trim(note: str, *, shorten: bool = True) -> str:
     # Docstrings conventionally open lowercase ("collect signals for…"); the tree
     # reads as a list of sentences, so lift the first letter.
     return note[:1].upper() + note[1:] if note else note
+
+
+def load_root_label(root: Path) -> str:
+    """Tree heading: `[tree] root_label` from the notes file, else the directory name.
+
+    Lets a repo whose checkout directory varies (CI, containers, cloud agents) keep a
+    stable generated tree.
+    """
+    path = root / OVERRIDES_FILE
+    try:
+        with path.open("rb") as handle:
+            label = tomllib.load(handle).get("tree", {}).get("root_label")
+    except (OSError, tomllib.TOMLDecodeError, AttributeError):
+        return root.name
+    return label if isinstance(label, str) and label else root.name
 
 
 def load_overrides(root: Path) -> dict[str, str]:
@@ -253,9 +269,9 @@ def _read_text(path: Path) -> str:
 # Tree rendering
 # ---------------------------------------------------------------------------
 
-def build_index(paths: list[str]) -> dict:
+def build_index(paths: list[str]) -> dict[str, Any]:
     """Fold flat relative paths into nested dicts; a file maps to an empty dict."""
-    root: dict = {}
+    root: dict[str, Any] = {}
     for rel in paths:
         node = root
         for part in rel.split("/"):
@@ -271,12 +287,12 @@ class TreeRenderer:
     max_depth: int | None
     max_entries: int | None
 
-    def rows(self, index: dict) -> list[tuple[str, str]]:
+    def rows(self, index: dict[str, Any]) -> list[tuple[str, str]]:
         collected: list[tuple[str, str]] = []
         self._walk(index, prefix="", rel="", depth=1, out=collected)
         return collected
 
-    def _walk(self, node: dict, prefix: str, rel: str, depth: int,
+    def _walk(self, node: dict[str, Any], prefix: str, rel: str, depth: int,
               out: list[tuple[str, str]]) -> None:
         dirs = sorted(k for k, v in node.items() if v)
         files = sorted(k for k, v in node.items() if not v)
@@ -321,7 +337,7 @@ def render_block(root: Path, max_depth: int | None, max_entries: int | None) -> 
     width = max((len(label) for label, note in rows if note), default=0)
     width = min(width, 48)
 
-    lines = ["```text", f"{root.name}/"]
+    lines = ["```text", f"{load_root_label(root)}/"]
     for label, note in rows:
         lines.append(f"{label.ljust(width)}  # {note}".rstrip() if note else label)
     lines.append("```")
@@ -447,7 +463,7 @@ def run_check(root: Path) -> int:
     if stale:
         names = ", ".join(p.relative_to(root).as_posix() for p in stale)
         print(f"\nstale generated tree in: {names}", file=sys.stderr)
-        print("refresh with: python .ai/skills/repo_tree/gen_tree.py "
+        print("refresh with: python .ai/skills/repo-tree/gen_tree.py "
               "--project . --output <file>", file=sys.stderr)
         return 1
 

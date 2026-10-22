@@ -9,7 +9,7 @@ name = "my-project"
 # Names map to files under .ai/rules/{languages,frameworks,practices}/<name>.md
 languages  = ["python", "typescript"]
 frameworks = ["react"]
-practices  = ["testing", "git-commits", "security", "architecture", "documentation", "verification"]
+practices  = ["coding", "testing", "git-commits", "security", "architecture", "documentation", "verification"]
 
 [tools]
 # Which assistants to wire up. "agents" (the root AGENTS.md) is always produced.
@@ -61,6 +61,10 @@ cursor_mdc = false
 # Off by default: they're opinionated, and a project that doesn't run multi-role
 # reviews shouldn't carry eleven agent descriptions in its context.
 claude_agents = false
+
+# Alias your Atlassian MCP server is connected under (tools are mcp__<alias>__*).
+# The shared tracker/docs-sync agents assume "atlassian"; set this to rewrite them.
+# atlassian_server = "atlassian"
 
 # --- Command and agent ports to other platforms ---
 # Every option below adapts commands/claude/*.md and agents/claude/*.md into another

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""init_config.py — scaffold ``ai-project-config.toml`` for the customize_config skill.
+"""init_config.py — scaffold ``ai-project-config.toml`` for the customize-config skill.
 
 Why this exists
 ----------------
@@ -8,7 +8,7 @@ files are shared and re-synced from upstream, so a project should never hand-edi
 anything under ``.ai/`` to get project-specific behavior — those edits would be
 silently lost on the next ``git submodule update --remote``. This script instead
 scaffolds ``ai-project-config.toml`` in the *parent* project's own root: a small,
-hand-edited override file the audit_repo skill (and, per its own SKILL.md, the
+hand-edited override file the audit-repo skill (and, per its own SKILL.md, the
 agent applying custom rules) reads back at audit time.
 
 Decoupled design
@@ -43,9 +43,9 @@ from pathlib import Path
 DEFAULT_FILENAME = "ai-project-config.toml"
 
 # Must match the `domain` attribute of each DomainAnalyzer in
-# skills/audit_repo/run_audit.py exactly, since these are the keys the audit
-# skill will (once wired up, see the customize_config SKILL.md) look up weights
-# by. Kept here as plain data, not imported from audit_repo, so the two skills
+# skills/audit-repo/run_audit.py exactly, since these are the keys the audit
+# skill will (once wired up, see the customize-config SKILL.md) look up weights
+# by. Kept here as plain data, not imported from audit-repo, so the two skills
 # stay independently self-contained (see SKILL.md's "Why two separate skills").
 KNOWN_AUDIT_DOMAINS: tuple[str, ...] = (
     "Architecture & Design",
@@ -146,14 +146,14 @@ def render_default_toml() -> str:
     """
     weight_lines = "\n".join(f'"{domain}" = 1.0' for domain in KNOWN_AUDIT_DOMAINS)
     return f'''\
-# ai-project-config.toml — local overrides for the ogen-ai audit_repo skill.
+# ai-project-config.toml — local overrides for the ogen-ai audit-repo skill.
 #
 # This file lives in YOUR project root, not inside the .ai/ submodule — it is
 # never touched by `git submodule update` and is yours to edit freely. Re-running
 # `init_config.py` will not overwrite it unless you pass --force.
 
 [rules.custom]
-# Project-specific coding conventions the audit_repo skill's agent should apply
+# Project-specific coding conventions the audit-repo skill's agent should apply
 # on top of the base rules in .ai/rules/ when scoring Architecture & Design and
 # Clean Code. One sentence per convention. These are read and judged by the
 # agent doing the audit, not mechanically enforced by a script.
@@ -229,7 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entrypoint: scaffold a new config, or validate an existing one with ``--check``."""
     parser = argparse.ArgumentParser(
         description="Scaffold ai-project-config.toml: local rule/weight overrides "
-                     "for the audit_repo skill, without touching the ogen-ai submodule."
+                     "for the audit-repo skill, without touching the ogen-ai submodule."
     )
     parser.add_argument("--project", type=Path, default=Path("."),
                          help="Parent project root to scaffold into (default: cwd).")
