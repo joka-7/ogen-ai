@@ -38,6 +38,8 @@ root_label = "ogen-ai"
 "commands/claude" = "Canonical $ARGUMENTS-driven Claude commands; four opt-in ports adapt them"
 
 "docs" = "Design and reference docs"
+"docs/audits" = "Point-in-time audits of this repo — snapshots, not kept current"
+"docs/audits/2026-10-skills-roles-audit.md" = "Full audit of skills, roles, ai-sync, scripts, tests and CI: bugs, verdicts, fix order"
 "docs/.structure-notes.toml" = "This file — hand-written notes for the generated tree"
 "docs/DESIGN.md" = "Full rationale: every decision, the alternatives rejected, the sourcing"
 "docs/HLD.md" = "System-level view: components, data flow, the role-agent trust boundary"
