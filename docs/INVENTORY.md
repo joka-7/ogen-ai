@@ -68,6 +68,7 @@ its environment to actually read the wired files — the one thing `ai-sync` can
 | `role-review` | Shared output schema, severity scale, and context-budget contract the role agents load |
 | `scaffold-python-service` | Scaffold a new Python service — FastAPI + strict-mypy baseline, gate-verified |
 | `engineering-guides` | The full coding/architecture/testing/documentation guides — general principles plus Python, TypeScript and C++, each short and detailed — loaded on demand |
+| `work-issues` | Take the open `ready` GitHub issues one at a time: read, plan if structural, branch, build, verify with CI's own commands, independent review, PR that closes it; asks before pushing and merges only when told |
 | `write-design-doc` | Write HLD.md/LLD.md — either documenting an existing repo as-built, or proposing a new feature's design, against the HLD/LLD checklist |
 
 ## Commands (`commands/claude/`)

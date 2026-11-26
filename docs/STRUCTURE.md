@@ -24,6 +24,9 @@ per-file/function behavior; [`DESIGN.md`](DESIGN.md) carries the reasoning behin
 ```text
 ogen-ai/
 ├── .github/                                      # CI configuration
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug.yml
+│   │   └── feature.yml
 │   ├── workflows/
 │   │   ├── checks.yml                            # Test suite on Python 3.11-3.13 (docs and security have their own workflows)
 │   │   ├── docs.yml
@@ -171,6 +174,8 @@ ogen-ai/
 │   │   └── SKILL.md                              # Scaffold a new Python backend service or package with the standard project…
 │   ├── threat-model/
 │   │   └── SKILL.md                              # Produce a threat model for a feature or system using STRIDE over its data…
+│   ├── work-issues/
+│   │   └── SKILL.md                              # Take the open GitHub issues labeled `ready` in a repo and work them one at a…
 │   └── write-design-doc/
 │       └── SKILL.md                              # Produce an HLD/LLD design document — either documenting an existing repo's…
 ├── tests/                                        # Stdlib unittest suite — run before and after touching bin/, agents/,…
