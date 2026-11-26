@@ -26,6 +26,8 @@ needs action in the consuming project.
 - `role-review` findings carry a stable **Fingerprint**; the tracker's ticket marker uses it.
 
 ### Added
+- `work-issues` skill: work the open `ready` GitHub issues from reading to a reviewed PR that closes
+  each, asking before any push and merging only when told.
 - Roles `privacy` (PRV), `performance` (PRF), `frontend` (FE): reviewers with no Bash, opt-in
   to `/role-review` by naming them; the default fan-out is unchanged.
 - Skills `debug-root-cause`, `dependency-upgrade`, `threat-model`, `pr-description`,
